@@ -4,6 +4,8 @@
 
 **在线使用：<https://byazlle.github.io/zhuji-bus-live/>**
 
+**安卓安装包：[下载 APK](https://github.com/byazlle/zhuji-bus-live/releases/latest)**（Android 5.0+，装完点开即用）
+
 <p align="center">
   <img src="assets/screenshot-home.png" width="240" alt="首页">
   <img src="assets/screenshot-detail.png" width="240" alt="线路详情">
@@ -33,7 +35,7 @@
 | 分级自动刷新 | 1 站内 10 秒、2 站 15 秒、3 站以上 60 秒；切后台自动暂停 |
 | 发车表 | 两个方向的首班 / 末班 / 全程公里 / 站数 / 票价 |
 | 字号调节 | 90% ~ 136% 五档，老人看得清；布局不散 |
-| 安卓 APK | 单文件 WebView 壳，装完点开就用（`dist/` 内有包） |
+| 安卓 APK | 单文件 WebView 壳，装完点开就用（[下载](https://github.com/byazlle/zhuji-bus-live/releases/latest) / `dist/` 内也有） |
 
 ## 界面
 
