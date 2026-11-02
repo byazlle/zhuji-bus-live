@@ -1,0 +1,1246 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<meta name="theme-color" content="#1565C0">
+<title>诸暨实时公交</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='12' fill='%231976D2'/%3E%3Crect x='16' y='14' width='32' height='26' rx='5' fill='white'/%3E%3Crect x='20' y='19' width='24' height='10' rx='2' fill='%231976D2'/%3E%3Ccircle cx='24' cy='45' r='4' fill='white'/%3E%3Ccircle cx='40' cy='45' r='4' fill='white'/%3E%3C/svg%3E">
+<style>
+:root{
+  --blue:#1976D2; --blue-d:#1259a8; --bg:#f1f3f6; --card:#fff;
+  --txt:#1a1a1a; --sub:#5b6672; --line:#e3e8ee;
+  --green:#2E7D32; --orange:#E65100; --star:#FFB300;
+  --font-zoom: 1;
+  --sat: env(safe-area-inset-top,0px);
+  --sab: env(safe-area-inset-bottom,0px);
+}
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html{-webkit-text-size-adjust:100%}
+body{
+  font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Noto Sans CJK SC","Microsoft YaHei",sans-serif;
+  background:var(--bg); color:var(--txt); font-size:17px; line-height:1.45;
+  max-width:520px; margin:0 auto; zoom:var(--font-zoom);
+  min-height:calc(100vh / var(--font-zoom));
+  -webkit-user-select:none; user-select:none;
+}
+button{font-family:inherit;border:0;background:none;color:inherit;cursor:pointer}
+.page{display:none;min-height:calc(100vh / var(--font-zoom));padding-bottom:var(--sab)}
+.page.active{display:block}
+
+/* ================= 首页 ================= */
+.hdr{
+  background:linear-gradient(135deg,#1976D2,#0D47A1); color:#fff;
+  padding:calc(8px + var(--sat)) 14px 9px;
+  display:flex;align-items:center;gap:10px;
+}
+.hdr-t{flex:1;min-width:0;font-size:20px;font-weight:700;letter-spacing:.5px;
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+/* 字号调节（放大 / 缩小） */
+.fsize{flex:0 0 auto;display:flex;gap:6px}
+.fsize button{height:30px;padding:0 10px;border-radius:9px;
+  background:rgba(255,255,255,.18);color:#fff;font-size:12.5px;font-weight:600;
+  display:flex;align-items:center;justify-content:center;line-height:1}
+.fsize button:active{background:rgba(255,255,255,.36)}
+.fsize button:disabled{opacity:.35}
+
+.searchwrap{
+  position:sticky; top:0; z-index:30; background:var(--bg);
+  padding:7px 12px 5px; transition:box-shadow .2s;
+}
+.searchwrap.stuck{box-shadow:0 2px 8px rgba(0,0,0,.10)}
+.sw{position:relative}
+.sw input{
+  width:100%; height:50px; border:0; border-radius:14px; background:#fff;
+  padding:0 44px 0 46px; font-size:17px; color:var(--txt); outline:none;
+  box-shadow:0 1px 4px rgba(0,0,0,.06);
+}
+.sw input::placeholder{color:#9aa5b1}
+.sw .ico{position:absolute;left:14px;top:50%;transform:translateY(-50%);color:#8b97a4;display:flex;align-items:center}
+.sw .clr{position:absolute;right:6px;top:50%;transform:translateY(-50%);width:38px;height:38px;border-radius:50%;font-size:19px;color:#8b97a4;display:none;align-items:center;justify-content:center}
+.sw .clr.on{display:flex}
+
+.sec{margin-top:4px}
+.stitle{
+  display:flex;align-items:center;justify-content:space-between;
+  padding:12px 16px 8px; font-size:16px; font-weight:700; color:#37474F;
+}
+.stitle .hint{font-size:13px;font-weight:400;color:#8b97a4}
+.stitle .mng{font-size:15px;font-weight:600;color:var(--blue);padding:4px 2px}
+
+.favg{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;padding:0 12px 2px}
+.fcard{
+  position:relative;background:#fff;border-radius:14px;
+  padding:11px 6px;text-align:center;box-shadow:0 1px 4px rgba(0,0,0,.05);
+  min-height:66px;display:flex;flex-direction:column;justify-content:center;
+}
+.fcard .fn{font-size:22px;font-weight:700;color:var(--blue);line-height:1.1;
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap;padding:0 2px}
+.fcard .fe{font-size:12px;color:#8b97a4;margin-top:3px;
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.fcard:active{background:#eaf2fb}
+.fcard .del{
+  display:none;position:absolute;top:-6px;right:-6px;width:28px;height:28px;
+  border-radius:50%;background:#e53935;color:#fff;font-size:16px;
+  align-items:center;justify-content:center;box-shadow:0 1px 4px rgba(0,0,0,.2);
+}
+body.managing .fcard .del{display:flex}
+.empty{
+  grid-column:1/-1;background:#fff;border-radius:14px;padding:14px 16px;
+  text-align:center;color:#8b97a4;font-size:14.5px;line-height:1.5;
+}
+
+.linelist{padding:0 12px 24px}
+.lrow{
+  display:flex;align-items:center;gap:12px;background:#fff;border-radius:14px;
+  padding:9px 10px 9px 12px;margin-bottom:7px;box-shadow:0 1px 3px rgba(0,0,0,.04);
+  content-visibility:auto;contain-intrinsic-size:auto 68px;
+}
+.lrow:active{background:#eef4fb}
+.badge{
+  flex:0 0 auto;min-width:56px;max-width:82px;height:44px;border-radius:11px;
+  background:linear-gradient(135deg,#1e88e5,#1565C0);color:#fff;
+  font-size:17px;font-weight:700;display:flex;align-items:center;justify-content:center;
+  padding:0 8px;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;
+}
+.linfo{flex:1;min-width:0}
+.lname{font-size:17px;font-weight:600;line-height:1.25;
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.lroute{font-size:12.5px;color:#8b97a4;margin-top:1px;
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.star{flex:0 0 auto;width:44px;height:44px;font-size:23px;color:#b6c2cf;
+  display:flex;align-items:center;justify-content:center;line-height:1}
+.star.on{color:var(--star)}
+.chev{flex:0 0 auto;color:#b6c2cf;font-size:24px;margin-left:-8px;padding-right:2px}
+
+/* ================= 详情页 ================= */
+#detailPage{background:var(--bg)}
+.sticky{
+  position:sticky; top:0; z-index:40;
+  background:linear-gradient(180deg,#1565C0,#1976D2);
+  padding-top:var(--sat);
+  box-shadow:0 2px 10px rgba(0,0,0,.14);
+}
+.dtop{display:flex;align-items:center;height:46px;padding:0 4px 0 2px}
+/* 返回按钮：箭头单独成元素 + nowrap，避免"返回"被折成两行 */
+.back{flex:0 0 auto;height:44px;display:flex;align-items:center;
+  font-size:15px;line-height:1;white-space:nowrap;color:#fff;
+  padding:0 8px 0 4px;min-width:56px}
+.back i{font-style:normal;font-size:19px;line-height:1;margin-right:3px;margin-top:-3px}
+.back:active{opacity:.7}
+.dtitle{flex:1;min-width:0;text-align:center;font-size:19px;font-weight:700;color:#fff;
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+/* 刷新信息条：移到标题旁，点一下即手动刷新 */
+.refbar{flex:0 0 auto;display:flex;align-items:center;gap:3px;
+  background:rgba(255,255,255,.18);border-radius:9px;padding:4px 7px;color:#fff;
+  font-size:11.5px;line-height:1;margin-right:2px}
+.refbar .rt{font-variant-numeric:tabular-nums;letter-spacing:.2px}
+.refbar:active{background:rgba(255,255,255,.34)}
+.dstar{width:40px;height:44px;font-size:23px;color:rgba(255,255,255,.55);
+  display:flex;align-items:center;justify-content:center}
+.dstar.on{color:var(--star)}
+
+.dirs{display:flex;gap:8px;padding:0 12px 7px}
+/* 发车表入口：方向栏最右边 */
+.ttbtn{flex:0 0 44px;display:flex;flex-direction:column;align-items:center;justify-content:center;
+  gap:2px;background:rgba(255,255,255,.16);border-radius:10px;color:#fff;
+  font-size:9.5px;line-height:1.2;padding:4px 2px}
+.ttbtn:active{background:rgba(255,255,255,.34)}
+.dir{
+  flex:1;min-width:0;background:rgba(255,255,255,.16);border-radius:10px;
+  padding:5px 6px 6px;color:#fff;text-align:left;line-height:1.35;
+  display:flex;flex-direction:column;justify-content:center;
+}
+.dir .dl{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.dir .dl.from{font-size:12.5px;color:rgba(255,255,255,.92)}
+.dir .dl.to{font-size:13.5px;font-weight:700;margin-top:2px}
+.dir .dl i{display:inline-block;font-style:normal;font-size:10px;line-height:1.5;
+  padding:0 3px;border-radius:4px;margin-right:4px;vertical-align:1.5px;
+  background:rgba(255,255,255,.26);color:#fff;font-weight:600}
+.dir.on{background:#fff;color:#0D47A1}
+.dir.on .dl.from{color:#4a7db5}
+.dir.on .dl i{background:rgba(21,101,192,.12);color:#1565C0}
+.dir .dl.via{font-size:10.5px;color:rgba(255,255,255,.75);margin-top:1px}
+.dir.on .dl.via{color:#6b7f95}
+
+.mybar{
+  display:flex;align-items:center;gap:6px;padding:4px 12px 5px;
+  font-size:14px;color:#fff;background:rgba(0,0,0,.10);
+}
+.mybar .mtxt{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.mybar b{font-weight:700}
+.mybar .st-warn{color:#FFE082;font-weight:700}
+.mybar .geobtn{flex:0 0 auto;font-size:12.5px;background:rgba(255,255,255,.22);
+  border-radius:8px;padding:3px 9px;color:#fff;line-height:1.3}
+.mybar .geobtn:active{background:rgba(255,255,255,.38)}
+
+.buses{padding:7px 12px 9px;display:flex;flex-direction:column;gap:6px}
+.brow{
+  background:#fff;border-radius:11px;padding:6px 11px;
+  display:flex;align-items:center;gap:9px;border-left:5px solid var(--blue);
+}
+.brow.first{border-left-color:#E65100}
+.pill{flex:0 0 auto;font-size:11.5px;font-weight:700;color:#fff;background:#E65100;
+  border-radius:7px;padding:2px 6px;line-height:1.4}
+.pill.ghost{background:#90A4AE}
+.btime{flex:0 0 72px;font-size:19px;font-weight:800;color:#E65100;line-height:1.15;
+  white-space:nowrap}
+.btime.sm{font-size:16.5px}
+.bdesc{flex:1;min-width:0;font-size:13.5px;color:#37474F;line-height:1.3}
+.bdesc .l1,.bdesc .l2{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.bdesc .l2{font-size:12.5px;color:#7b8794;margin-top:1px}
+.bempty{
+  background:#fff;border-radius:12px;padding:14px 12px;text-align:center;
+  color:#5b6672;font-size:15px;
+}
+.bmore{text-align:center;color:rgba(255,255,255,.8);font-size:12.5px;padding:1px 0 0}
+.bempty .sub{font-size:12.5px;color:#8b97a4;margin-top:3px}
+
+.stations{padding:4px 0 24px;background:var(--bg)}
+/* 站点列表表头：标题 + 正序/倒序切换 */
+.slisthead{display:flex;align-items:center;gap:8px;flex-wrap:wrap;
+  padding:9px 14px 7px;background:var(--bg)}
+.slisthead .slt{font-size:13.5px;color:#5b6672;font-weight:600;flex:1 1 auto;min-width:0;
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.slisthead .slt em{font-style:normal;font-weight:400;color:#93a0ad}
+.seg{display:flex;gap:4px;flex:0 0 auto}
+.segb{font-size:12px;line-height:1.3;padding:4px 8px;border-radius:8px;
+  background:#e6ebf1;color:#93a0ad;font-weight:600;white-space:nowrap}
+.segb.on{background:var(--blue);color:#fff}
+.segb:active{opacity:.85}
+.st{
+  display:flex;align-items:stretch;gap:10px;padding:0 14px;position:relative;
+  background:var(--bg);
+}
+.st:active{background:#e7ecf3}
+.rail{flex:0 0 22px;display:flex;flex-direction:column;align-items:center}
+.rail .ln{width:3px;flex:1;background:#cdd7e2}
+.rail .ln.hide{background:transparent}
+.rail .dot{width:13px;height:13px;border-radius:50%;background:#b8c4d0;
+  margin:2px 0;flex:0 0 auto;transition:all .15s}
+.st .body{flex:1;min-width:0;display:flex;align-items:center;gap:6px;
+  padding:11px 0;border-bottom:1px solid #eceff3}
+.st:last-child .body{border-bottom:0}
+.sname{font-size:18px;line-height:1.3;flex:0 1 auto;min-width:0;
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.st .grow{flex:1;min-width:2px}
+.st.passed .sname{color:#93a0ad}
+.st.mine .body{background:rgba(76,175,80,.08)}
+.st.mine .sname{color:var(--green);font-weight:800}
+.st.mine .dot{background:#43A047;width:17px;height:17px;box-shadow:0 0 0 4px rgba(67,160,71,.18)}
+.tag{flex:0 0 auto;font-size:12px;font-weight:700;color:#fff;border-radius:9px;
+  padding:2px 7px;line-height:1.6}
+.tag.end{background:#FB8C00}
+.tag.start{background:#1e88e5}
+.tag.mine{background:#43A047}
+.tag.bus{background:#546E7A;font-size:13px;padding:1px 6px}
+.foot{text-align:center;color:#a9b3bd;font-size:12px;padding:4px 0 20px}
+
+/* 放大字体时（124%/136%），方向按钮改成上下两行，右边的发车表跨两行，文字不再被截断 */
+body[data-z="1.24"] .dirs,body[data-z="1.36"] .dirs{
+  display:grid;grid-template-columns:1fr 44px;gap:6px;align-items:stretch;
+}
+body[data-z="1.24"] .dir,body[data-z="1.36"] .dir{grid-column:1}
+body[data-z="1.24"] .ttbtn,body[data-z="1.36"] .ttbtn{grid-column:2;grid-row:1 / span 2;height:auto}
+
+/* 小屏（<=359dp）自适应，避免方向按钮和车辆信息被截断 */
+@media (max-width:359px){
+  /* 超窄屏方向按钮也上下排，保证站名完整 */
+  .dirs{display:grid;grid-template-columns:1fr 44px;gap:6px;align-items:stretch}
+  .dir{grid-column:1;padding:4px 6px 5px}
+  .ttbtn{grid-column:2;grid-row:1 / span 2;height:auto}
+  .dir .dl.from{font-size:11.5px}
+  .dir .dl.to{font-size:12px}
+  .dir .dl i{font-size:9.5px;margin-right:3px}
+  .btime{flex-basis:64px;font-size:17.5px}
+  .bdesc{font-size:13px}
+  .bdesc .l2{font-size:12px}
+  .sname{font-size:17px}
+  .slisthead{padding:8px 12px 6px;gap:6px}
+  .slisthead .slt{font-size:12.5px}
+  .segb{font-size:11.5px;padding:4px 6px}
+}
+
+/* ===== 发车表（底部弹层） ===== */
+.mask{position:fixed;left:0;right:0;top:0;bottom:0;background:rgba(0,0,0,.45);
+  z-index:200;display:none;align-items:flex-end}
+.mask.on{display:flex}
+.sheet{width:100%;max-width:520px;margin:0 auto;background:#fff;
+  border-radius:18px 18px 0 0;max-height:78vh;overflow:auto;
+  padding-bottom:var(--sab);animation:up .2s ease-out}
+@keyframes up{from{transform:translateY(36px);opacity:.5}to{transform:none;opacity:1}}
+.sheet-h{display:flex;align-items:center;justify-content:space-between;
+  padding:14px 16px 10px;border-bottom:1px solid #eef1f4;
+  position:sticky;top:0;background:#fff;z-index:1}
+.sheet-h b{font-size:18px;color:#1a1a1a}
+.sheet-x{font-size:15px;font-weight:600;color:var(--blue);
+  background:#eef4fb;border-radius:9px;padding:6px 12px}
+.sheet-x:active{background:#dfeaf8}
+.tt-dir{padding:14px 16px 2px;font-size:16.5px;font-weight:700;color:#1565C0;
+  display:block;line-height:1.35}
+.tt-dir .cur{display:inline-block;font-size:11px;font-weight:700;color:#fff;
+  background:var(--blue);border-radius:6px;padding:1px 6px;margin-left:6px;vertical-align:2px}
+.tt-dir small{display:block;margin-top:2px;font-size:12.5px;font-weight:400;color:#8b97a4}
+.tt-row{display:flex;gap:28px;padding:6px 16px 2px}
+.tt-row .it{display:flex;flex-direction:column}
+.tt-row .it span{font-size:12px;color:#8b97a4}
+.tt-row .it b{font-size:22px;font-weight:800;color:#E65100;line-height:1.25;
+  font-variant-numeric:tabular-nums}
+.tt-meta{padding:2px 16px 14px;font-size:13.5px;color:#5b6672}
+.tt-sep{height:1px;background:#f0f3f6;margin:4px 16px 0}
+.tt-note{padding:12px 16px calc(18px + var(--sab));font-size:12.5px;color:#93a0ad;line-height:1.5}
+
+.toast{
+  position:fixed;left:50%;bottom:calc(28px + var(--sab));transform:translateX(-50%) translateY(20px);
+  background:rgba(33,33,33,.92);color:#fff;font-size:15px;padding:10px 18px;border-radius:22px;
+  opacity:0;pointer-events:none;transition:all .22s;z-index:999;max-width:88vw;text-align:center;
+}
+.toast.on{opacity:1;transform:translateX(-50%) translateY(0)}
+.skel{background:#e9edf2;border-radius:10px;height:16px;animation:pulse 1.2s infinite}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.55}}
+.loading{padding:26px 16px;text-align:center;color:#8b97a4;font-size:15px}
+</style>
+</head>
+<body>
+
+<!-- ================= 首页 ================= -->
+<div class="page active" id="homePage">
+  <div class="hdr">
+    <div class="hdr-t">诸暨实时公交</div>
+    <div class="fsize">
+      <button id="fsDown" aria-label="缩小字体">缩小</button>
+      <button id="fsUp" aria-label="放大字体">放大</button>
+    </div>
+  </div>
+
+  <div class="searchwrap" id="searchwrap">
+    <div class="sw">
+      <span class="ico"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="M20 20l-4.2-4.2"/></svg></span>
+      <input id="q" type="text" inputmode="search" placeholder="输入线路号，如 1、105、156" autocomplete="off">
+      <button class="clr" id="clrBtn">✕</button>
+    </div>
+  </div>
+
+  <div class="sec">
+    <div class="stitle">
+      <span>我的常用线路</span>
+      <span class="mng" id="mngBtn"></span>
+    </div>
+    <div class="favg" id="favg"></div>
+  </div>
+
+  <div class="sec">
+    <div class="stitle">
+      <span id="allTitle">全部线路</span>
+    </div>
+    <div class="linelist" id="linelist">
+      <div class="loading">正在加载线路…</div>
+    </div>
+  </div>
+</div>
+
+<!-- ================= 详情页 ================= -->
+<div class="page" id="detailPage">
+  <div class="sticky" id="sticky">
+    <div class="dtop">
+      <button class="back" id="backBtn"><i>‹</i>返回</button>
+      <div class="dtitle" id="dtitle">—</div>
+      <button class="refbar" id="refBar" title="点击立即刷新">
+        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-3-6.7"/><path d="M21 4v5h-5"/></svg>
+        <span class="rt" id="refTime">--:--</span>
+      </button>
+      <button class="dstar" id="dstar">☆</button>
+    </div>
+    <div class="dirs" id="dirs"></div>
+    <div class="mybar" id="mybar"></div>
+    <div class="buses" id="buses"></div>
+  </div>
+
+  <div class="slisthead">
+    <span class="slt">站点列表<em id="orderHint">（终点在最上面）</em></span>
+    <div class="seg">
+      <button class="segb on" data-order="desc">终点站在上</button>
+      <button class="segb" data-order="asc">起点站在上</button>
+    </div>
+  </div>
+  <div class="stations" id="stations">
+    <div class="loading">正在加载站点…</div>
+  </div>
+  <div class="foot">数据来自诸暨公交 · 仅供参考</div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<!-- 发车表弹层 -->
+<div class="mask" id="ttMask">
+  <div class="sheet">
+    <div class="sheet-h">
+      <b>发车表</b>
+      <button class="sheet-x" id="ttClose">关闭</button>
+    </div>
+    <div id="ttBody"></div>
+  </div>
+</div>
+
+<script>
+const SEED_LINES=[["1路","西施殿公交首末站","草塔停车场"],["2路","公交南站","客运西站"],["6路","福田公交首末站","火车站"],["7路","街亭拙园","小商品市场（陶朱北路）"],["8路A","公交东站","公交东站"],["8路B","公交东站","公交东站"],["9路A","公交东站","公交东站"],["9路B","公交东站","公交东站"],["10路","城市广场公交首末站","火车站"],["11路","万达广场","外陈"],["13路","公交东站","红联社区"],["15路","公交东站","火车站"],["16路","国际商贸城粤港城公交场站","新农都公交首末站"],["17路","公交东站（凯越府邸）","火车站"],["18路","技师学院南门","宋家"],["19路","同方大酒店","盛兆坞"],["20路","小商品市场（福庄路）","五蓬（俞张）"],["21路","公交东站","火车站"],["23路","公交东站","双福村（赵家埠）"],["25路","国际商贸城粤港城公交场站","大唐袜业城"],["25路夜","火车站","大唐袜业城"],["26路","公交东站","西施殿公交首末站"],["27路","智能视觉产业园","公交东站"],["28路","绍兴护士学校","城市广场公交首末站"],["29路A","小商品市场（陶朱北路）","小商品市场（陶朱北路）"],["29路B","小商品市场（陶朱北路）","小商品市场（陶朱北路）"],["30路","新农都公交首末站","建银大厦公交首末站"],["31路","城市广场公交首末站","草塔停车场"],["31路区","城市广场公交首末站","草塔停车场"],["32路","国际商贸城粤港城公交场站","五浦头村"],["35路","小商品市场（人民北路）","白门下村"],["36路","大唐袜业城","福田公交首末站"],["37路","海亮教育园始发站","福田公交首末站"],["38路","新农都公交首末站","大唐袜业城"],["39路","大唐袜业城","建银大厦公交首末站"],["50路","万达广场","草塔停车场"],["51路","城市广场公交首末站","赵石新村村委"],["52路","丰南路（商龙宾馆）","新农都公交首末站"],["53路","福田公交首末站","智能视觉产业园"],["57A路","火车站","五泄风景区"],["57路","客运西站","五泄风景区"],["58路","火车站","牌头镇公交首末站"],["101A路","客运中心","上培（经浬浦）"],["101B路","客运中心","李家宅（经浬浦）"],["101路","客运中心","大林"],["102A路","客运中心","斯宅（千柱屋）"],["102B路","客运中心","吴子里"],["102C路","客运中心","娄曹"],["102D路","客运中心","坑口（香榧南园）"],["102E路","客运中心","廖宅（新屋基）"],["102F路","客运中心","察墅"],["102G路","客运中心","张高坞"],["102H路","客运中心","东白湖"],["102路","客运中心","东白湖"],["103A路","客运中心","枫桥新汽车站"],["103B路","客运中心","枫桥新汽车站"],["103路","客运中心（通勤班车）","枫桥学院（通勤班车）"],["105A路","客运中心","徐里（竹蓬）"],["105B路","客运中心","半丘"],["105C路","客运中心","陈卜坞"],["105D路","客运中心","齐村"],["105E路","客运中心","桐树林"],["105F路","客运中心","杨庄"],["105G区间","璜山站","岭北（经老石东线）"],["105G路","客运中心","岭北（经老石东线）"],["105H路","客运中心","许村（上房）"],["105I路","客运中心","青顶山新农村"],["105J路","客运中心","梅岭"],["105K路","客运中心","枫山"],["105L路","客运中心","姜村"],["105M路","客运中心","塘北"],["105N路","客运中心","陈卜坞（经石壁）"],["105P路","客运中心","巢勾山村"],["105Q路","客运中心","梅岭（经青顶山）"],["105g区间","璜山站","岭北（经新石东线）"],["105g路","客运中心","岭北（经新石东线）"],["105路","客运中心","璜山站"],["107路","客运中心","坑西"],["108A路","客运西站","直埠（经萍溪）"],["108B路","客运西站","晚浦自然村"],["108路","客运西站","直埠"],["109A路","郭家停车场","店口汽车站"],["109B路","郭家停车场","店口汽车站"],["109C路","郭家停车场","何家山头（孙家坞）"],["109D路","郭家停车场","金家站"],["109路","郭家停车场","店口汽车站（经新阮山线）"],["112A路","客运中心","毛家坞（经暨南街道办事处）"],["112B路","客运中心","毛家坞（经下袁）"],["112路","客运中心","董村"],["113路","国际商贸城粤港城公交场站","三都"],["115路","客运中心","陈宅公交首末站"],["116路","客运西站","凰桐（经十店线）"],["117A路","客运西站","次坞站（经火车站）"],["117B路","客运西站","次坞站（经汽车城）"],["122路","客运中心","新壁（中俞）"],["123A路","客运中心","冯蔡"],["123B路","客运中心","冯蔡"],["123路","客运中心","大林"],["125路","客运西站","凰桐（经大桥）"],["126A路","客运中心","东和"],["126B路","客运中心","梓月岭"],["126C路","客运中心","东和"],["126路","客运中心","章坞"],["127A路","郭家停车场","泰和（经高湖村）"],["127路","郭家停车场","泰和"],["128路","客运中心","第五人民医院"],["129路","客运中心","同山公交首末站"],["131A路","客运西站","郑家坞（经牌头）"],["131B路","客运中心","郑家坞（经牌头）"],["132路","客运中心","安华（经大唐）"],["133路","客运中心","赵家镇公交首末站"],["135路","客运中心","牌头镇公交首末站"],["136A路","客运西站","长澜"],["136C路","客运西站","马坞"],["136路","客运西站","桌山（刘尖坞）"],["137A路","国际商贸城公交首末站","王家井（桥头黄村）"],["137B路","客运中心","国际商贸城公交首末站"],["137C路","客运中心","王家井（桥头黄村）"],["137路","客运中心","国际商贸城公交首末站"],["139路","客运中心","安华（经快道）"],["151路","国际商贸城粤港城公交场站","盛兆坞"],["152路","客运西站","马剑公交首末站"],["153路","客运西站","金沙村"],["156路","郭家停车场","山汀（山后）"],["157路","客运中心","五泄风景区"],["158A路","客运西站","王家井一百超市"],["158B路","客运西站","王家井一百超市"],["158C路","客运西站","王家井一百超市"],["158路","客运西站","王家井一百超市"],["159路","郭家停车场","白塔湖"],["160路","郭家停车场","阮市炒货市场"],["161A路","客运中心","董村"],["161路","客运中心","里杜"],["162路","客运中心","老龙"],["163路","客运西站","汪家桥村部"],["165路","客运中心","绛霞"],["167路","客运西站","青龙（毛竹塔）"],["168路","客运西站","岭外"],["169A路","客运中心","霞中村（经杨蔡）"],["169路","客运中心","王家井一百超市"],["170路","客运西站","蒋坞（老鹰岩下）"],["171路","客运西站","梓树岭下"],["172A路","客运中心","严塘"],["172路","客运中心","新兴村"],["173路","客运西站","湄池（经官弦线）"],["175路","客运西站","五泄风景区北门"],["201A路","枫桥新汽车站","湄池停车场"],["201路","枫桥新汽车站","湄池停车场"],["202路","枫桥新汽车站","大林"],["203A路","枫桥新汽车站","赵家（驻日岭）"],["203B路","枫桥新汽车站","赵家（绛霞）"],["203C路","枫桥新汽车站","保安新村"],["203D路","枫桥新汽车站","洄村"],["203E路","枫桥新汽车站","赵家（后京）"],["203F路","枫桥新汽车站","枫源（泰山）"],["203G路","枫桥新汽车站","毛家园（经拔峰）"],["203H路","枫桥新汽车站","丁家坞"],["203I路","赵家镇公交首末站","护家洞（庙里）"],["203J路","赵家镇公交首末站","石头坑"],["203路","枫桥新汽车站","赵家（皂溪站）"],["205A路","枫桥新汽车站","辽坞"],["205B路","枫桥新汽车站","里汤"],["205C路","枫桥新汽车站","岫山"],["205D路","枫桥新汽车站","河宣"],["205路","枫桥新汽车站","大溪"],["206路","枫桥新汽车站","桂木峧"],["207A路","枫桥新汽车站","山下湖（经人和村）"],["207B路","枫桥新汽车站","山下湖公交首末站"],["207路","枫桥新汽车站","山下湖村"],["208A路","枫桥新汽车站","柳坞"],["208B路","枫桥新汽车站","马岭（宣家坞）"],["208C路","枫桥新汽车站","古博岭"],["208D路","枫桥新汽车站","高家"],["208E路","枫桥新汽车站","屠家坞"],["208路","枫桥新汽车站","东松岭下"],["209A路","赵家镇公交首末站","榧王村（马观音）"],["209路","枫桥新汽车站","榧王村（马观音）"],["210A路","赵家镇公交首末站","相泉（下文道地）"],["210B路","赵家镇公交首末站","钟家岭"],["210路","枫桥新汽车站","钟家岭"],["211A路","赵家镇公交首末站","上阳"],["211路","枫桥新汽车站","上阳"],["212A路","璜山站","牌头镇公交首末站"],["212B路","璜山站","牌头镇公交首末站（经里坞）"],["212路","璜山站","牌头镇公交首末站（经许村）"],["213路","湄池停车场","凰桐"],["215A路","应店街公交首末站","仕畈坞"],["215B路","应店街公交首末站","仕畈坞"],["215C路","应店街公交首末站","葛家坞"],["215D路","应店街公交首末站","云淡坞"],["215E路","应店街公交首末站","洪里坞"],["216路","应店街公交首末站","大唐街道办事处"],["217A路","应店街公交首末站","五泄风景区北门"],["217路","应店街公交首末站","紫阆"],["218A路","草塔停车场","燕至堂（拳头山脚）"],["218B路","草塔停车场","里家坞"],["218C路","草塔停车场","东坂"],["218D路","草塔停车场","杨家楼（岭上畈文化礼堂）"],["218路","草塔停车场","杨家楼"],["219A路","璜山站","大成坞村"],["219B路","璜山站","大王庙"],["219路","璜山站","大王庙"],["220路","璜山站","晓居"],["221A路","草塔停车场","西青"],["222A路","草塔停车场","徽州舍"],["222B路","草塔停车场","新亭坞"],["222路","草塔停车场","下汪上村"],["223A路","赵家镇公交首末站","外宣"],["223路","枫桥新汽车站","外宣"],["226A路","次坞公交首末站","凰桐"],["226B路","次坞公交首末站","凰桐"],["226C路","次坞公交首末站","里蒋坞"],["227A路","岭北（三洲）","总部中心（东阳）"],["227a路","岭北（水带）","总部中心（东阳）"],["227路","陈宅公交首末站","坞底文化礼堂"],["228A路","草塔停车场","廊坞上村（经郑坞）"],["228B路","草塔停车场","小普丰（大地）"],["228C路","草塔停车场","同山公交首末站"],["228D路","草塔停车场","明教（枫树坞）"],["228路","草塔停车场","同山公交首末站"],["229A路","湄池停车场","陈姜村"],["229B路","店口汽车站","湄池停车场"],["229路","湄池停车场","店口老菜场"],["230A路","里祝园","直埠卫生院"],["230B路","石宕下村","直埠卫生院"],["230路","直埠卫生院","店口汽车站"],["231A路","东和卫生院","大林"],["231B路","东和卫生院","高山村"],["231C路","东和卫生院","大林"],["231路","东和卫生院","朱坞"],["232A路","东和卫生院","里娄沟"],["232路","东和卫生院","子和大道地"],["233A路","东和卫生院","王家山"],["233B路","大林","王家山"],["233路","东和卫生院","上梧岗村"],["235A路","牌头镇公交首末站","兴埠"],["235路","牌头镇公交首末站","杨曙霞"],["236A路","牌头镇公交首末站","新乐一村（牌轩下）"],["236路","牌头镇公交首末站","新五（溪口）"],["237路","牌头镇公交首末站","石邵"],["238A路","同山公交首末站","三新（许村）"],["238路","同山公交首末站","南日"],["239A路","店口老菜场","西何"],["239路","湄池停车场","店口老菜场"],["250A路","安华镇河杨公交首末站","山头后"],["250B路","安华镇河杨公交首末站","赵宅"],["250路","安华镇河杨公交首末站","俞家塘"],["251A路","安华镇河杨公交首末站","三联"],["251路","安华镇河杨公交首末站","王对岭"],["252A路","马剑公交首末站","塘坞（外老坞底）"],["252路","马剑公交首末站","山河岭脚"],["253A路","马剑公交首末站","上和"],["253B路","马剑公交首末站","平顶操场"],["253C路","马剑公交首末站","石门（天师堂）"],["253路","马剑公交首末站","草塔停车场"],["255A路","马剑公交首末站","龙门脚"],["255B路","马剑公交首末站","金竹坑"],["255C路","马剑公交首末站","何兴"],["255路","马剑公交首末站","鲍溪"],["256路","璜山站","兼溪（下杜）"],["257路","岭北（三洲）","岭顶村部"],["258路","孚家湖村","金山湖文化礼堂"],["259A路","岭北（三洲）","里梅坞"],["259路","坞底文化礼堂","金山湖文化礼堂"],["260A路","东白湖","蔡义坞"],["260路","东白湖","冯家"],["261A路","湄池停车场","俞家自然村"],["261路","湄池停车场","湄二自然村"],["262A路","湄池停车场","七里村部"],["262路","湄池停车场","渔村（大坞）"],["263A路","店口汽车站","王家自然村"],["263路","店口汽车站","白沥畈"],["265路","店口镇政府","大山坞"],["266A路","江藻农贸市场","梓尚阁（尚武）"],["266B路","江藻农贸市场","湖阁"],["266路","江藻农贸市场","江丰村部"],["267A路","江藻农贸市场","杜月坞"],["267B路","江藻农贸市场","江藻农贸市场"],["267路","江藻农贸市场","小孤山"],["268A路","阮市炒货市场","马坞"],["268路","阮市炒货市场","兰岭"],["269路","阮市炒货市场","金岭"],["270A路","山下湖公交首末站","盛兆坞一村"],["270路","山下湖公交首末站","长乐"],["271A路","应店街公交首末站","深坞"],["271路","应店街公交首末站","崇柱村部"],["272A路","应店街公交首末站","杨家坞村部"],["272B路","应店街公交首末站","幸福（经骆家溪）"],["272路","应店街公交首末站","幸福（坎二）"],["273路","应店街公交首末站","黄家"],["275路","次坞公交首末站","道林山（楼家桥）"],["276A路","次坞公交首末站","石马坞村部"],["276路","次坞公交首末站","沈河村部"],["277路","次坞公交首末站","儒城坞"],["278路","草塔停车场","五泄停车场"],["279A路","璜山站","茅塘"],["279路","璜山站","大高坞村部（三队道地）"],["280路","应店街公交首末站","五云（阳坞）"],["281A路","东白湖","廖宅（新屋基）"],["281B路","东白湖","廖宅（经山岔）"],["281C路","东白湖","山岔（经捣臼湾）"],["281路","东白湖","山岔"],["282A路","东白湖","王坑"],["282路","东白湖","坑口（香榧南园）"],["283A路","东白湖","丁驾山"],["283路","东白湖","察墅"],["287A路","东白湖","上培"],["287路","东白湖","上培"],["288A路","东白湖","施家沿（经娄高坞）"],["288路","东白湖","施家沿"],["289A路","大林","上培"],["289路","大林","娄曹"],["290A路","大林","李家宅"],["290B路","大林","察墅"],["290路","大林","施家沿"],["291A路","同山公交首末站","安华河杨公交首末站"],["291B路","同山公交首末站","安华河杨公交首末站"],["291C路","同山公交首末站","安华河杨公交首末站"],["292A路","同山公交首末站","大岭山湾"],["292B路","同山公交首末站","吉水坑"],["292路","同山公交首末站","里江山"],["293A路","同山公交首末站","张坞底"],["293B路","同山公交首末站","张坞底（经邵家山）"],["293路","同山公交首末站","丽坞底"],["295A路","东和卫生院","梨树坞村"],["295B路","东和卫生院","施坞村"],["295C路","大林","梨树坞村"],["295路","东和卫生院","吉竹坑"],["296A路","枫桥新汽车站","里东坞"],["296路","枫桥新汽车站","石峡里村"],["298A路","大唐街道办事处","东坞"],["298路","大唐街道办事处","左溪"],["299A路","江藻农贸市场","安家埠"],["299路","直埠卫生院","江藻农贸市场"],["301A路","陈宅公交首末站","宣家坞"],["301路","陈宅公交首末站","茅岭"],["302路","璜山站","泄阳"],["303路","璜山站","燕窠（上百宅）"],["305A路","赵家镇公交首末站","桃岭"],["305路","赵家镇公交首末站","檀岙"],["306路","安华河杨公交首末站","景家坞"],["307路","安华河杨公交首末站","丰江周祠堂"],["308路","同山公交首末站","里杭"],["309路","五泄停车场","前泄"],["310路","五泄停车场","里道坞"],["311路","马剑公交首末站","中坑（篮球场）"],["312路","马剑公交首末站","马家岭头"],["313A路","阮市炒货市场","述塘下"],["313B路","阮市炒货市场","乌程菜场"],["313C路","阮市炒货市场","朱砂"],["313路","阮市炒货市场","甘岭"],["315A路","牌头镇公交首末站","山下周村部"],["315路","牌头镇公交首末站","寺龙"],["316路","东和卫生院","下姚"],["317A路","枫桥新汽车站","坞坑"],["317路","枫桥新汽车站","寺坞"],["318路","璜山站","青顶山新农村"],["319A路","东白湖","王谷坞"],["319路","东白湖","蔡义古"],["321A路","山下湖公交首末站","桐子山"],["321B路","山下湖公交首末站","枫江村"],["321路","山下湖公交首末站","宜桥"],["322A路","应店街公交首末站","石孔岭下"],["322路","应店街公交首末站","宣顺"],["323A路","璜山站","淡竹坞"],["323B路","璜山站","杜家峰"],["323路","璜山站","上三畈"],["325A路","枫桥新汽车站","创业村"],["325路","枫桥新汽车站","上九里"],["326A路","安华镇河杨公交首末站","黄岩坞"],["326路","安华河杨公交首末站","上新宅"],["327A路","璜山站","延庆"],["327路","璜山站","丁家坞"],["328A路","璜山站","塘北"],["328路","璜山站","半丘"],["329路","陈宅公交首末站","枫山"],["331路","枫桥新汽车站","赵家（经石砩）"],["332路","赵家镇公交首末站","东和卫生院"],["618路","店口汽车站","漓渚公交站"],["8001路","城市广场公交首末站","大金村始发站"],["8002路","城市广场公交首末站","万达广场"],["8003路","火车站","陶朱初中"],["8005路","白马郡北门","福田公交首末站"],["8007路","街亭拙园","建银大厦公交首末站"],["8009路","小商品市场（陶朱北路）","宋家"],["Y1A路","建银大厦公交首末站","建银大厦公交首末站"],["Y1B路","建银大厦公交首末站","建银大厦公交首末站"],["专线","国际商贸城粤港城","店口汽车站"],["凰桐河上专线","凰桐公交站","河上公交站（樟树下）"],["快1路","城市广场","火车站"],["通勤2号A线","双福村（赵家埠）","暨阳初中"],["通勤3号线","大唐袜业城","新农都公交首末站"],["青春巴士夜间专线A","暨阳学院南门","暨阳学院南门"],["青春巴士夜间专线B","暨阳学院南门","暨阳学院南门"],["高湖专线","高湖大桥","城市广场公交首末站"]];
+
+/* ==================== 基础工具 ==================== */
+const $ = id => document.getElementById(id);
+const API_BASE = 'https://zjcx.zhuji.gov.cn:9443';
+const API_H = {
+  deviceId: 'zjbus_web_1',
+  userToken: 'userToken',
+  codeValue: '330681',
+  appCode: '330681',
+  sourceCodeValue: '330681',
+  appVersion: '1.0.0',
+  deviceTypeName: 'weixin'
+};
+const LS = {
+  get(k, d) { try { const v = localStorage.getItem(k); return v == null ? d : JSON.parse(v); } catch (e) { return d; } },
+  set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) {} },
+  del(k) { try { localStorage.removeItem(k); } catch (e) {} }
+};
+function esc(s) {
+  return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+}
+let toastTimer = null;
+function toast(msg) {
+  const t = $('toast');
+  t.textContent = msg;
+  t.classList.add('on');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => t.classList.remove('on'), 1800);
+}
+function fmtClock(d) {
+  const p = n => (n < 10 ? '0' : '') + n;
+  return p(d.getHours()) + ':' + p(d.getMinutes()) + ':' + p(d.getSeconds());
+}
+function hav(a, b, c, d) {
+  if (!a || !b || !c || !d) return 0;
+  const R = 6371000, r = Math.PI / 180;
+  const p1 = a * r, p2 = c * r;
+  const x = Math.sin((p2 - p1) / 2) ** 2 + Math.cos(p1) * Math.cos(p2) * Math.sin((d - b) * r / 2) ** 2;
+  return 2 * R * Math.asin(Math.sqrt(x));
+}
+function shortName(n) {
+  let s = n.replace(/路$/, '');
+  return s.length > 5 ? s.slice(0, 4) + '…' : s;
+}
+
+/* ==================== 接口层 ==================== */
+function checkJson(json) {
+  const code = String(json.code || json.returnFlag || '');
+  if (code !== '200') throw new Error(json.msg || json.returnInfo || '接口返回异常');
+  return json.data || {};
+}
+// 老版本 WebView（无 fetch）走 XHR
+function apiXhr(path, body) {
+  return new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    xhr.open('POST', API_BASE + path, true);
+    xhr.setRequestHeader('Content-Type', 'application/json');
+    xhr.timeout = 13000;
+    xhr.onload = () => {
+      if (xhr.status < 200 || xhr.status >= 300) return reject(new Error('服务器 ' + xhr.status));
+      try { resolve(checkJson(JSON.parse(xhr.responseText))); } catch (e) { reject(e); }
+    };
+    xhr.onerror = () => reject(new Error('网络不通'));
+    xhr.ontimeout = () => reject(new Error('网络超时'));
+    xhr.send(JSON.stringify({ h: API_H, b: body }));
+  });
+}
+async function api(path, body, retry) {
+  if (typeof fetch !== 'function' || typeof AbortController !== 'function') return apiXhr(path, body);
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), 13000);
+  try {
+    const res = await fetch(API_BASE + path, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ h: API_H, b: body }),
+      signal: ctrl.signal,
+      cache: 'no-store'
+    });
+    if (!res.ok) throw new Error('服务器 ' + res.status);
+    return checkJson(await res.json());
+  } catch (e) {
+    if (retry !== false && (e.name === 'AbortError' || e.message === 'Failed to fetch')) {
+      await new Promise(r => setTimeout(r, 400));
+      return api(path, body, false);
+    }
+    throw e.name === 'AbortError' ? new Error('网络超时') : e;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+const apiLineDetail = lineName => api('/gzcx-busServer/client/busLine/queryLine', { lineName, needGeometry: 0 });
+const apiVehicles = lineId => api('/gzcx-busServer/client/bus/vehicle/dynamic/line/details', { lineId });
+const apiSearch = (lineName, page, offset) =>
+  api('/gzcx-busServer/client/busLine/searchBusLines', { lineName, needGeometry: 0, page: page || 1, offset: offset || 30 });
+
+/* ==================== 线路数据 ==================== */
+const LINE_KEY = 'zjbus.lines.v2';
+let LINES = [];
+function lineKey(n) { const m = n.match(/^(\d+)/); return m ? [0, +m[1], n] : [1, 0, n]; }
+function sortLines(arr) {
+  return arr.slice().sort((a, b) => {
+    const ka = lineKey(a.lineName), kb = lineKey(b.lineName);
+    if (ka[0] !== kb[0]) return ka[0] - kb[0];
+    if (ka[1] !== kb[1]) return ka[1] - kb[1];
+    return ka[2] < kb[2] ? -1 : ka[2] > kb[2] ? 1 : 0;
+  });
+}
+function loadLines() {
+  LINES = SEED_LINES.map(r => ({ lineName: r[0], startStation: r[1], endStation: r[2] }));
+  const cache = LS.get(LINE_KEY, null);
+  if (cache && Array.isArray(cache.list) && cache.list.length) {
+    LINES = cache.list;
+    if (Date.now() - (cache.t || 0) < 7 * 864e5) return;   // 7 天内不刷新
+  }
+  refreshLinesFromApi();
+}
+let linesRefreshing = false;
+async function refreshLinesFromApi() {
+  if (linesRefreshing) return;
+  linesRefreshing = true;
+  try {
+    const map = new Map();
+    // 先放入现有列表，避免只按"路"拉取时丢掉"专线"这类不含"路"的线路
+    LINES.forEach(l => map.set(l.lineName, l));
+    for (let page = 1; page <= 8; page++) {
+      let d;
+      try { d = await apiSearch('路', page, 50); } catch (e) { break; }
+      const list = d.list || [];
+      if (!list.length) break;
+      list.forEach(r => { if (r && r.lineName) map.set(r.lineName, { lineName: r.lineName, startStation: r.startStation || '', endStation: r.endStation || '' }); });
+      if (list.length < 50) break;
+    }
+    if (map.size > 50) {
+      LINES = sortLines([...map.values()]);
+      LS.set(LINE_KEY, { t: Date.now(), list: LINES });
+      if (state.page === 'home') renderLines();
+    }
+  } catch (e) { /* 静默失败，继续用内置数据 */ }
+  linesRefreshing = false;
+}
+
+/* ==================== 收藏 ==================== */
+const FAV_KEY = 'zjbus.favs.v1';
+const MAX_FAV = 30;
+let FAVS = LS.get(FAV_KEY, []);
+if (!Array.isArray(FAVS)) FAVS = [];
+let managing = false;
+function saveFavs() { LS.set(FAV_KEY, FAVS); }
+function isFav(n) { return FAVS.indexOf(n) > -1; }
+function toggleFav(n) {
+  const i = FAVS.indexOf(n);
+  if (i > -1) { FAVS.splice(i, 1); saveFavs(); return false; }
+  if (FAVS.length >= MAX_FAV) { toast('常用线路最多 ' + MAX_FAV + ' 条'); return false; }
+  FAVS.push(n); saveFavs(); return true;
+}
+
+/* ==================== 全局状态 ==================== */
+const state = {
+  page: 'home',
+  line: '',
+  dir: 'up',
+  data: null,
+  stations: [],       // 按 stationOrder 升序（起点 → 终点）
+  segs: [],           // 相邻站间距（米）
+  myId: '',           // 我所在的站 id
+  raw: [],            // 原始车辆列表
+  speed: 240,         // 米/分钟
+  timer: null,
+  reqId: 0,
+  sig: '',
+  lastAt: null,
+  nearest: null,
+  shown: 0,
+  desc: LS.get('zjbus.order', 'desc') !== 'asc',   // 站点列表：true=终点在上
+  refreshing: false
+};
+const ST_KEY = 'zjbus.mystation.v1';
+
+/* ==================== 首页渲染 ==================== */
+function renderFavs() {
+  const box = $('favg');
+  if (!FAVS.length) {
+    box.innerHTML = '<div class="empty">点下面线路右边的 ☆ 收藏常用</div>';
+    $('mngBtn').textContent = '';
+    return;
+  }
+  box.innerHTML = FAVS.map(n => {
+    const meta = LINES.find(l => l.lineName === n) || {};
+    return `<div class="fcard" data-line="${esc(n)}">
+      <button class="del" data-del="${esc(n)}">✕</button>
+      <div class="fn">${esc(shortName(n))}</div>
+      <div class="fe">${esc(meta.endStation || '查看实时')}</div>
+    </div>`;
+  }).join('');
+  $('mngBtn').textContent = managing ? '完成' : '管理';
+}
+/* 本地找不到时，再去接口搜一次（内置列表万一缺了新线路） */
+let remoteKw = '';
+async function remoteSearch(kw) {
+  remoteKw = kw;
+  try {
+    const d = await apiSearch(kw, 1, 30);
+    const list = (d.list || []).map(r => ({
+      lineName: r.lineName, startStation: r.startStation || '', endStation: r.endStation || ''
+    })).filter(r => r.lineName);
+    let added = 0;
+    list.forEach(r => {
+      if (!LINES.some(l => l.lineName === r.lineName)) { LINES.push(r); added++; }
+    });
+    if (added) {
+      LINES = sortLines(LINES);
+      LS.set(LINE_KEY, { t: Date.now(), list: LINES });
+      renderFavs();
+    }
+    if (list.length && ($('q').value || '').trim().toUpperCase() === kw.toUpperCase()) renderLines();
+  } catch (e) { /* 网络不行就维持"没找到" */ }
+}
+
+function renderLines() {
+  const kw = ($('q').value || '').trim().toUpperCase();
+  const box = $('linelist');
+  let arr = LINES;
+  if (kw) {
+    const k = kw.replace(/路$/, '');
+    arr = LINES.filter(l => {
+      const n = l.lineName.toUpperCase().replace(/路$/, '');
+      return n.indexOf(k) > -1 || l.endStation.indexOf(kw) > -1 || l.startStation.indexOf(kw) > -1;
+    });
+  }
+  $('allTitle').textContent = kw ? '搜索结果 ' + arr.length + ' 条' : '全部线路';
+  if (!arr.length) {
+    box.innerHTML = '<div class="empty">没找到「' + esc(kw) + '」这条线路</div>';
+    if (kw && kw !== remoteKw) remoteSearch(kw);
+    return;
+  }
+  box.innerHTML = arr.map(l => `<div class="lrow" data-line="${esc(l.lineName)}">
+      <div class="badge">${esc(shortName(l.lineName))}</div>
+      <div class="linfo">
+        <div class="lname">${esc(l.lineName)}</div>
+        <div class="lroute">${esc(l.startStation)} → ${esc(l.endStation)}</div>
+      </div>
+      <button class="star ${isFav(l.lineName) ? 'on' : ''}" data-fav="${esc(l.lineName)}">${isFav(l.lineName) ? '★' : '☆'}</button>
+      <div class="chev">›</div>
+    </div>`).join('');
+}
+
+/* ==================== 首页交互 ==================== */
+let searchTimer = null;
+$('q').addEventListener('input', function () {
+  $('clrBtn').classList.toggle('on', !!this.value);
+  clearTimeout(searchTimer);
+  searchTimer = setTimeout(renderLines, 120);
+});
+$('clrBtn').addEventListener('click', () => {
+  $('q').value = '';
+  $('clrBtn').classList.remove('on');
+  renderLines();
+  $('q').focus();
+});
+$('mngBtn').addEventListener('click', () => {
+  if (!FAVS.length) return;
+  managing = !managing;
+  document.body.classList.toggle('managing', managing);
+  renderFavs();
+});
+document.addEventListener('scroll', () => {
+  $('searchwrap').classList.toggle('stuck', window.scrollY > 40);
+}, { passive: true });
+
+document.addEventListener('click', e => {
+  const del = e.target.closest('[data-del]');
+  if (del) { toggleFav(del.getAttribute('data-del')); renderFavs(); renderLines(); return; }
+  const fav = e.target.closest('[data-fav]');
+  if (fav) {
+    const n = fav.getAttribute('data-fav');
+    const on = toggleFav(n);
+    fav.classList.toggle('on', on);
+    fav.textContent = on ? '★' : '☆';
+    renderFavs();
+    if (on) toast('已加入常用线路');
+    return;
+  }
+  const card = e.target.closest('[data-line]');
+  if (card) {
+    if (managing) return;
+    openDetail(card.getAttribute('data-line'));
+  }
+});
+$('backBtn').addEventListener('click', goHome);
+
+/* ==================== 详情页 ==================== */
+function setPage(p) {
+  state.page = p;
+  $('homePage').classList.toggle('active', p === 'home');
+  $('detailPage').classList.toggle('active', p === 'detail');
+  window.scrollTo(0, 0);
+}
+
+async function openDetail(lineName) {
+  stopTimer();
+  state.reqId++;
+  state.line = lineName;
+  state.data = null;
+  state.dir = 'up';
+  state.stations = [];
+  state.segs = [];
+  state.raw = [];
+  state.myId = '';
+  state.sig = '';
+  state.nearest = null;
+  state.lastAt = null;
+  setPage('detail');
+  $('dtitle').textContent = lineName;
+  updateStar();
+  renderRef();
+  $('dirs').innerHTML = '<div class="dir on"><span class="dn">加载中…</span></div>';
+  $('mybar').innerHTML = '<span class="mtxt">正在加载线路…</span>';
+  $('buses').innerHTML = '<div class="bempty">正在查车辆位置…</div>';
+  $('stations').innerHTML = '<div class="loading">正在加载站点…</div>';
+
+  try {
+    const data = await apiLineDetail(lineName);
+    if (!data || (!data.up && !data.down)) throw new Error('没有这条线路');
+    state.data = data;
+    if (!data.up) state.dir = 'down';
+    else if (!data.down) state.dir = 'up';
+    renderDirs();
+    applyDirection(true);
+  } catch (e) {
+    $('stations').innerHTML = '<div class="loading">线路加载失败，请返回重试</div>';
+    $('buses').innerHTML = '<div class="bempty">线路加载失败<div class="sub">' + esc(e.message || '') + '</div></div>';
+    $('dirs').innerHTML = '';
+  }
+}
+
+/* 站点列表正序 / 倒序切换 */
+document.querySelector('.seg').addEventListener('click', e => {
+  const b = e.target.closest('[data-order]');
+  if (!b) return;
+  const desc = b.getAttribute('data-order') === 'desc';
+  if (desc === state.desc) return;
+  state.desc = desc;
+  LS.set('zjbus.order', desc ? 'desc' : 'asc');
+  renderStations();
+  // 换序后把"我在这"滚回视野，否则会跑到很远的地方
+  const mine = document.querySelector('.st.mine');
+  if (mine) {
+    const top = mine.getBoundingClientRect().top + window.scrollY;
+    const head = $('sticky').getBoundingClientRect().height + 40;
+    window.scrollTo(0, Math.max(0, top - head - 80));
+  }
+});
+
+/* 刷新时间条（在标题旁）：点一下立即刷新 */
+$('refBar').addEventListener('click', () => {
+  if (state.page !== 'detail') return;
+  toast('正在刷新…');
+  loadBuses(true);
+});
+
+/* 我在这 / 定位 */
+$('mybar').addEventListener('click', e => {
+  if (e.target.closest('#geoBtn')) locateMe(false);
+});
+
+function updateStar() {
+  const on = isFav(state.line);
+  const el = $('dstar');
+  el.textContent = on ? '★' : '☆';
+  el.classList.toggle('on', on);
+}
+$('dstar').addEventListener('click', () => {
+  const on = toggleFav(state.line);
+  updateStar();
+  toast(on ? '已加入常用线路' : '已取消收藏');
+});
+
+function renderDirs() {
+  const d = state.data;
+  const dirs = [];
+  if (d.up) dirs.push({ key: 'up', s: d.up });
+  if (d.down) dirs.push({ key: 'down', s: d.down });
+  // 环线（上下行起终点相同）时加一行"经 XX"区分，否则两个按钮长得一样
+  const amb = dirs.length === 2 &&
+    dirs[0].s.startStation === dirs[1].s.startStation &&
+    dirs[0].s.endStation === dirs[1].s.endStation;
+  // 不再用箭头，直接写清"从哪发车 / 终点到哪"
+  $('dirs').innerHTML = dirs.map(x => {
+    const via = amb ? (((x.s.stationList || [])[1] || {}).stationName || '') : '';
+    return `<button class="dir ${x.key === state.dir ? 'on' : ''}" data-dir="${x.key}">
+      <span class="dl from"><i>发车</i>${esc(x.s.startStation || '')}</span>
+      <span class="dl to"><i>终点</i>${esc(x.s.endStation || '')}</span>
+      ${via ? `<span class="dl via">经 ${esc(via)}</span>` : ''}
+    </button>`;
+  }).join('') + `<button class="ttbtn" id="ttBtn">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M12 7.5V12l3 2"/></svg>
+      发车表
+    </button>`;
+}
+$('dirs').addEventListener('click', e => {
+  if (e.target.closest('#ttBtn')) { openTimetable(); return; }
+  const b = e.target.closest('[data-dir]');
+  if (!b) return;
+  const dir = b.getAttribute('data-dir');
+  if (dir === state.dir) { loadBuses(true); return; }   // 再点当前方向 = 手动刷新
+  state.dir = dir;
+  renderDirs();
+  applyDirection(false);
+});
+
+/* ==================== 发车表 ==================== */
+function hm(t) { return t ? String(t).slice(0, 5) : '—'; }
+function openTimetable() {
+  const d = state.data;
+  if (!d) return;
+  const rows = [];
+  [['up', d.up], ['down', d.down]].forEach(([key, s]) => {
+    if (!s) return;
+    const n = (s.stationList || []).length;
+    const meta = [];
+    if (s.lineLength) meta.push('全程 ' + s.lineLength + ' 公里');
+    if (n) meta.push('共 ' + n + ' 站');
+    if (s.totalPrice) meta.push('票价 ' + (Number(s.totalPrice) === 1 ? '1' : s.totalPrice) + ' 元');
+    rows.push(`<div class="tt-dir">开往 ${esc(s.endStation || '')}
+        ${key === state.dir ? '<span class="cur">当前</span>' : ''}
+        <small>从 ${esc(s.startStation || '')} 发车</small>
+      </div>
+      <div class="tt-row">
+        <div class="it"><span>首班</span><b>${hm(s.startFirst)}</b></div>
+        <div class="it"><span>末班</span><b>${hm(s.startLast)}</b></div>
+      </div>
+      <div class="tt-meta">${meta.map(esc).join(' · ') || '暂无更多信息'}</div>
+      <div class="tt-sep"></div>`);
+  });
+  $('ttBody').innerHTML = rows.join('') +
+    '<div class="tt-note">首末班时间来自诸暨公交官方数据；具体班次间隔以站牌和现场为准。</div>';
+  $('ttMask').classList.add('on');
+}
+function closeTimetable() { $('ttMask').classList.remove('on'); }
+$('ttClose').addEventListener('click', closeTimetable);
+$('ttMask').addEventListener('click', e => { if (e.target.id === 'ttMask') closeTimetable(); });
+
+function dirData() { return state.data ? state.data[state.dir] : null; }
+
+/* 载入当前方向的站点；resetChoice=true 时尝试恢复上次的选择 */
+function applyDirection(first) {
+  const d = dirData();
+  if (!d) return;
+  const raw = (d.stationList || []).slice();
+  raw.sort((a, b) => (a.stationOrder || 0) - (b.stationOrder || 0));
+  state.stations = raw;
+  state.segs = [];
+  for (let i = 0; i < raw.length - 1; i++) {
+    let s = hav(raw[i].poiOriginLat, raw[i].poiOriginLon, raw[i + 1].poiOriginLat, raw[i + 1].poiOriginLon);
+    if (!s || s > 5000) s = Number(raw[i + 1].lastDistance) || 500;   // 坐标异常时用接口给的段长
+    state.segs.push(s);
+  }
+  state.raw = [];
+  state.sig = '';
+  state.nearest = null;
+  state.lastAt = null;
+  state.reqId++;          // 让上一个方向的请求作废
+
+  // 恢复该线路该方向上次选的站；切换方向时按站名匹配（上下行站点 id 不同）
+  const saved = LS.get(ST_KEY, {});
+  const key = state.line + '|' + state.dir;
+  const otherKey = state.line + '|' + (state.dir === 'up' ? 'down' : 'up');
+  let rec = saved[key] || null;
+  if (rec && typeof rec === 'string') rec = { id: rec, name: '' };   // 兼容旧数据
+  let id = '';
+  if (rec) {
+    if (rec.id && raw.some(s => s.id === rec.id)) id = rec.id;
+    else if (rec.name) { const m = raw.find(s => s.stationName === rec.name); if (m) id = m.id; }
+  }
+  if (!id) {
+    const o = saved[otherKey];
+    const orec = typeof o === 'string' ? { id: o, name: '' } : o;
+    if (orec && orec.name) { const m = raw.find(s => s.stationName === orec.name); if (m) id = m.id; }
+  }
+  state.myId = id;
+  renderStations();
+  renderMybar();
+  renderRef();
+  loadBuses();
+  if (first) tryAutoLocate();      // 没记住站时，已授权定位就自动选最近站
+}
+
+function myIndex() {
+  if (!state.myId) return -1;
+  return state.stations.findIndex(s => s.id === state.myId);
+}
+
+function renderStations() {
+  const st = state.stations;
+  const n = st.length;
+  if (!n) { $('stations').innerHTML = '<div class="loading">这个方向暂无站点</div>'; return; }
+  const mi = myIndex();
+  const busOrders = new Set();
+  state.raw.forEach(b => { const o = Number(b.vehicleOrder) || 0; if (o > 0) busOrders.add(o); });
+
+  let html = '';
+  for (let p = 0; p < n; p++) {
+    // 显示第 p 行对应的「升序下标」：倒序时终点在最上，正序时起点在最上
+    const idx = state.desc ? n - 1 - p : p;
+    const s = st[idx];
+    const mine = idx === mi;
+    const passed = mi >= 0 && idx < mi;      // 比你更靠近起点 = 车已经开过去了
+    const first = p === 0, last = p === n - 1;
+    const leftTags = [];
+    const rightTags = [];
+    if (idx === 0) rightTags.push('<span class="tag start">起点站</span>');
+    if (idx === n - 1) rightTags.push('<span class="tag end">终点站</span>');
+    if (mine) rightTags.push('<span class="tag mine">你在这</span>');
+    if (busOrders.has(s.stationOrder)) leftTags.push('<span class="tag bus" data-busmark="1">🚌</span>');
+    html += `<div class="st${mine ? ' mine' : ''}${passed ? ' passed' : ''}" data-id="${esc(s.id)}" data-o="${s.stationOrder}">
+      <div class="rail">
+        <i class="ln${first ? ' hide' : ''}"></i>
+        <i class="dot"></i>
+        <i class="ln${last ? ' hide' : ''}"></i>
+      </div>
+      <div class="body">
+        <span class="sname">${esc(s.stationName)}</span>${leftTags.join('')}
+        <span class="grow"></span>${rightTags.join('')}
+      </div>
+    </div>`;
+  }
+  $('stations').innerHTML = html;
+  renderOrderUI();
+}
+
+/* 站点排序切换的选中态 + 括号说明 */
+function renderOrderUI() {
+  const hint = $('orderHint');
+  if (hint) hint.textContent = state.desc ? '（终点在最上面）' : '（起点在最上面）';
+  document.querySelectorAll('.segb').forEach(b => {
+    b.classList.toggle('on', (b.getAttribute('data-order') === 'desc') === state.desc);
+  });
+}
+
+/* 只更新站点上的 🚌 标记，避免整棵列表重绘造成闪烁 */
+function updateBusMarks() {
+  const orders = new Set();
+  state.raw.forEach(b => { const o = Number(b.vehicleOrder) || 0; if (o > 0) orders.add(o); });
+  $('stations').querySelectorAll('.st').forEach(el => {
+    const o = Number(el.getAttribute('data-o'));
+    const has = !!el.querySelector('[data-busmark]');
+    const need = orders.has(o);
+    if (need && !has) {
+      const b = document.createElement('span');
+      b.className = 'tag bus'; b.setAttribute('data-busmark', '1'); b.textContent = '🚌';
+      el.querySelector('.sname').insertAdjacentElement('afterend', b);
+    } else if (!need && has) {
+      el.querySelector('[data-busmark]').remove();
+    }
+  });
+}
+
+function renderMybar() {
+  const mi = myIndex();
+  const left = mi < 0
+    ? '<span class="st-warn">👇 点下面站点，选你在这站</span>'
+    : '📍 我在这：<b>' + esc(state.stations[mi].stationName) + '</b>';
+  const geo = (typeof navigator !== 'undefined' && navigator.geolocation)
+    ? '<button class="geobtn" id="geoBtn">定位</button>' : '';
+  $('mybar').innerHTML = `<span class="mtxt">${left}</span>${geo}`;
+}
+
+/* 顶部刷新时间条 */
+function renderRef() {
+  const el = $('refTime');
+  if (el) el.textContent = state.lastAt ? fmtClock(state.lastAt).slice(0, 5) : '--:--';
+}
+
+/* ==================== 定位 ==================== */
+function nearestStationByGeo(lat, lng) {
+  let best = null, bestD = Infinity;
+  state.stations.forEach(s => {
+    const d = hav(lat, lng, s.poiOriginLat, s.poiOriginLon);
+    if (d && d < bestD) { bestD = d; best = s; }
+  });
+  return best ? { station: best, dist: bestD } : null;
+}
+
+function locateMe(silent) {
+  if (!navigator.geolocation) {
+    if (!silent) toast('这个手机不支持定位，请点站点选择');
+    return;
+  }
+  if (!silent) toast('正在定位…');
+  let done = false;
+  const fail = msg => {
+    if (done) return;
+    done = true;
+    if (!silent) toast(msg);
+  };
+  navigator.geolocation.getCurrentPosition(pos => {
+    if (done) return;
+    done = true;
+    const hit = nearestStationByGeo(pos.coords.latitude, pos.coords.longitude);
+    if (!hit) { if (!silent) toast('这条线附近没有站点'); return; }
+    if (hit.dist > 2000) {
+      if (!silent) toast('定位离这条线有点远（约 ' + Math.round(hit.dist / 1000) + ' 公里），请手动点站点');
+      return;
+    }
+    if (hit.station.id === state.myId) {
+      if (!silent) toast('你已经在这站：' + hit.station.stationName);
+      return;
+    }
+    state.myId = hit.station.id;
+    const saved = LS.get(ST_KEY, {});
+    saved[state.line + '|' + state.dir] = { id: hit.station.id, name: hit.station.stationName };
+    LS.set(ST_KEY, saved);
+    renderStations();
+    renderBuses();
+    loadBuses(true);
+    toast('已定位到：' + hit.station.stationName);
+  }, err => {
+    fail(err && err.code === 1 ? '没有定位权限，请点站点选择' : '定位失败，请点站点选择');
+  }, { enableHighAccuracy: true, timeout: 9000, maximumAge: 60000 });
+  setTimeout(() => fail('定位超时，请点站点选择'), 10000);
+}
+
+/* 打开线路时：只有"已经授权过定位"才静默自动选站，避免每次都弹权限框 */
+async function tryAutoLocate() {
+  if (state.myId) return;
+  if (!navigator.geolocation || !navigator.permissions || !navigator.permissions.query) return;
+  try {
+    const p = await navigator.permissions.query({ name: 'geolocation' });
+    if (p.state === 'granted') locateMe(true);
+  } catch (e) { /* 部分 WebView 不支持 permissions.query，交给用户点「定位」 */ }
+}
+
+/* ==================== 车辆计算 ==================== */
+function computeBuses() {
+  const st = state.stations, n = st.length;
+  const mi = myIndex();
+  const myOrder = mi >= 0 ? st[mi].stationOrder : 0;
+  const out = [];
+  state.raw.forEach(b => {
+    const order = Number(b.vehicleOrder) || 0;
+    if (order <= 0 || order > n) return;
+    const distToNext = Math.max(0, Number(b.distance) || 0);
+    const segLen = state.segs[order - 1] || 0;
+    const hasNext = !!st[order];                  // 还有下一站（不是终点站）
+    const progress = hasNext && segLen > 0 ? Math.min(1, distToNext / segLen) : 0;
+    const atStation = Number(b.isArriveStation) === 1 || progress < 0.55;
+
+    let remain = null, meters = 0;
+    if (myOrder > 0) {
+      remain = myOrder - order;                   // 还要经过几站
+      if (remain < 0) return;                     // 已经开过去了，不显示
+      if (remain === 0 && !atStation) return;     // 刚离站且已走远 → 算开过了
+      meters = remain === 0 ? 0 : distToNext;
+      for (let i = order; i < mi; i++) meters += state.segs[i] || 0;
+    }
+
+    let minutes = null;
+    if (remain !== null && remain > 0) {
+      const dwell = remain * 0.35;
+      minutes = Math.max(1, Math.round(meters / (state.speed || 240) + dwell));
+      if (minutes > 99) minutes = 99;
+    }
+    out.push({
+      order,
+      plate: b.plateNumber || '',
+      remain, minutes, meters,
+      atStation,
+      stationName: st[order - 1] ? st[order - 1].stationName : '',   // 车刚过的站
+      nextName: hasNext ? st[order].stationName : '',
+      distToNext, hasNext
+    });
+  });
+  // 有定位时按“还差几站”排序；没定位时按在线路上的先后（越靠近终点越前）
+  if (myOrder > 0) {
+    out.sort((a, b) => (a.remain - b.remain) || (a.meters - b.meters));
+  } else {
+    out.sort((a, b) => b.order - a.order);
+  }
+  return out;
+}
+
+function whereIs(b) {
+  const verb = b.atStation ? '车在' : '车刚过';
+  return `${verb}「${b.stationName}」`;
+}
+function busHtml(list) {
+  if (!list.length) {
+    const mi = myIndex();
+    const msg = state.raw.length
+      ? (mi < 0 ? '暂时没有可显示的车' : '你要坐的车刚开过去，等下一班吧')
+      : '这条线现在没有车在跑';
+    return `<div class="bempty">${msg}<div class="sub">会自动刷新，也可点右上角时间手动刷新</div></div>`;
+  }
+  const total = state.stations.length;
+  // 字体放大后竖向空间紧张，只留最近的一辆
+  const maxCards = ZOOMS[zoomIdx] >= 1.24 ? 1 : 2;
+  const show = list.slice(0, maxCards);
+  let html = show.map((b, i) => {
+    let big = '', l1 = '', l2 = '';
+    if (b.remain === null) {
+      big = '在路上';
+      l1 = whereIs(b);
+      l2 = `到终点还有 ${total - b.order} 站`;
+    } else if (b.remain === 0) {
+      big = '已到站';
+      l1 = '就在你这一站';
+      l2 = '注意看车，别错过';
+    } else if (b.remain === 1) {
+      big = '马上到';
+      l1 = whereIs(b);
+      l2 = '下一站就是你' + (b.minutes ? ` · 约${b.minutes}分钟` : '');
+    } else {
+      big = '约' + b.minutes + '分钟';
+      l1 = whereIs(b);
+      l2 = `还有 ${b.remain} 站到你这`;
+    }
+    const pill = i === 0 ? '<span class="pill">最近</span>' : `<span class="pill ghost">第2</span>`;
+    return `<div class="brow${i === 0 ? ' first' : ''}">
+      ${pill}
+      <div class="btime${String(big).length > 5 ? ' sm' : ''}">${esc(big)}</div>
+      <div class="bdesc"><div class="l1">${esc(l1)}</div><div class="l2">${esc(l2)}</div></div>
+    </div>`;
+  }).join('');
+  if (list.length > maxCards) {
+    html += `<div class="bmore">后面还有 ${list.length - maxCards} 辆车</div>`;
+  }
+  return html;
+}
+
+function renderBuses() {
+  const list = computeBuses();
+  state.shown = list.length;
+  state.nearest = list.length && list[0].remain !== null ? list[0].remain : null;
+  const html = busHtml(list);
+  if (html !== state.sig) {
+    $('buses').innerHTML = html;
+    state.sig = html;
+  }
+  updateBusMarks();
+  renderMybar();
+  renderRef();
+}
+
+/* ==================== 刷新调度 ==================== */
+function stopTimer() {
+  if (state.timer) { clearTimeout(state.timer); state.timer = null; }
+}
+function scheduleNext() {
+  stopTimer();
+  if (state.page !== 'detail') return;
+  let ms = 60000;
+  const r = state.nearest;
+  if (r !== null && r <= 1) ms = 10000;        // 1 站以内 → 10 秒
+  else if (r === 2) ms = 15000;                // 2 站 → 15 秒
+  state.timer = setTimeout(() => {
+    if (document.hidden) { scheduleNext(); return; }
+    loadBuses();
+  }, ms);
+}
+
+async function loadBuses(force) {
+  const d = dirData();
+  if (!d || !d.id) return;
+  if (state.refreshing && !force) return;
+  state.refreshing = true;
+  const rid = ++state.reqId;
+  const keep = state.raw;
+  try {
+    const data = await apiVehicles(d.id);
+    if (rid !== state.reqId || state.page !== 'detail') { state.refreshing = false; return; }
+    state.speed = Number(data.busAverageSpeed) || 240;
+    state.raw = Array.isArray(data.list) ? data.list : [];
+    state.lastAt = new Date();
+    renderBuses();
+  } catch (e) {
+    if (rid === state.reqId && state.page === 'detail') {
+      state.raw = keep;
+      if (!state.sig) {
+        $('buses').innerHTML = `<div class="bempty">车辆位置没查出来<div class="sub">${esc(e.message || '网络不稳')}，稍后自动重试</div></div>`;
+      } else {
+        toast('刷新失败，稍后自动重试');
+      }
+      renderMybar();
+    }
+  } finally {
+    state.refreshing = false;
+  }
+  scheduleNext();
+}
+
+document.addEventListener('visibilitychange', () => {
+  if (!document.hidden && state.page === 'detail') loadBuses(true);
+});
+
+/* 点站点 = 我在这 */
+$('stations').addEventListener('click', e => {
+  const row = e.target.closest('.st');
+  if (!row) return;
+  const id = row.getAttribute('data-id');
+  if (!id || id === state.myId) return;
+  state.myId = id;
+  const saved = LS.get(ST_KEY, {});
+  const mi0 = myIndex();
+  saved[state.line + '|' + state.dir] = { id: id, name: mi0 >= 0 ? state.stations[mi0].stationName : '' };
+  LS.set(ST_KEY, saved);
+  renderStations();
+  renderBuses();          // 立刻用已有数据重算，不等网络
+  const mi = myIndex();
+  if (mi >= 0) toast('已选：' + state.stations[mi].stationName);
+  loadBuses(true);        // 再拉一次最新位置
+});
+
+function goHome() {
+  stopTimer();
+  state.reqId++;
+  setPage('home');
+  renderFavs();
+  renderLines();
+}
+
+/* ==================== 字号调节 ==================== */
+const ZOOM_KEY = 'zjbus.zoom';
+const ZOOMS = [0.9, 1, 1.12, 1.24, 1.36];
+let zoomIdx = Number(LS.get(ZOOM_KEY, 1));
+if (!(zoomIdx >= 0 && zoomIdx < ZOOMS.length)) zoomIdx = 1;
+function applyZoom() {
+  const z = ZOOMS[zoomIdx];
+  document.documentElement.style.setProperty('--font-zoom', String(z));
+  document.body.setAttribute('data-z', String(z));
+  LS.set(ZOOM_KEY, zoomIdx);
+  $('fsDown').disabled = zoomIdx === 0;
+  $('fsUp').disabled = zoomIdx === ZOOMS.length - 1;
+}
+$('fsUp').addEventListener('click', () => {
+  if (zoomIdx >= ZOOMS.length - 1) return;
+  zoomIdx++; applyZoom();
+  toast('字体已放大（' + Math.round(ZOOMS[zoomIdx] * 100) + '%）');
+});
+$('fsDown').addEventListener('click', () => {
+  if (zoomIdx <= 0) return;
+  zoomIdx--; applyZoom();
+  toast('字体已缩小（' + Math.round(ZOOMS[zoomIdx] * 100) + '%）');
+});
+
+/* 安卓返回键：先关弹层 → 再回首页 → 否则退出 */
+window.androidBack = function () {
+  if ($('ttMask').classList.contains('on')) { closeTimetable(); return false; }
+  if (state.page === 'detail') { goHome(); return false; }
+  return true;
+};
+
+/* ==================== 启动 ==================== */
+applyZoom();
+loadLines();
+renderFavs();
+renderLines();
+</script>
+</body>
+</html>

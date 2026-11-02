@@ -1,0 +1,17 @@
+# 本地构建/测试产物
+_tools/
+_tmp/
+_test/node_modules/
+android/build/
+android/assets/
+android/release.keystore
+dist/*.idsig
+
+# 环境变量与密钥
+.env
+*.keystore
+*.jks
+
+# 系统
+.DS_Store
+Thumbs.db
