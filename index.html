@@ -196,6 +196,21 @@ body.managing .fcard .del{display:flex}
 .bmore{text-align:center;color:rgba(255,255,255,.8);font-size:12.5px;padding:1px 0 0}
 .bempty .sub{font-size:12.5px;color:#8b97a4;margin-top:3px}
 
+/* 没车时：显示下一班发车时间 */
+.brow.next{border-left-color:#1565C0}
+.brow.next .btime{color:#1565C0;font-size:18px}
+.brow.next .pill{background:#1565C0}
+.bnote{text-align:center;color:rgba(255,255,255,.78);font-size:12px;padding:0 0 1px}
+
+/* 隐性背景箭头：提示行驶方向（朝终点） */
+.flowbg{
+  position:fixed;right:-24px;top:56%;transform:translateY(-50%);
+  width:196px;height:320px;pointer-events:none;z-index:3;
+  color:#0D47A1;opacity:.045;mix-blend-mode:multiply;
+  transition:transform .28s ease;
+}
+.flowbg.down{transform:translateY(-50%) rotate(180deg)}
+
 .stations{padding:4px 0 24px;background:var(--bg)}
 /* 站点列表表头：标题 + 正序/倒序切换 */
 .slisthead{display:flex;align-items:center;gap:8px;flex-wrap:wrap;
@@ -281,11 +296,14 @@ body[data-z="1.24"] .ttbtn,body[data-z="1.36"] .ttbtn{grid-column:2;grid-row:1 /
 .tt-dir .cur{display:inline-block;font-size:11px;font-weight:700;color:#fff;
   background:var(--blue);border-radius:6px;padding:1px 6px;margin-left:6px;vertical-align:2px}
 .tt-dir small{display:block;margin-top:2px;font-size:12.5px;font-weight:400;color:#8b97a4}
-.tt-row{display:flex;gap:28px;padding:6px 16px 2px}
-.tt-row .it{display:flex;flex-direction:column}
+.tt-row{display:flex;gap:0;padding:6px 16px 2px}
+.tt-row .it{display:flex;flex-direction:column;flex:1 1 0;min-width:0}
 .tt-row .it span{font-size:12px;color:#8b97a4}
-.tt-row .it b{font-size:22px;font-weight:800;color:#E65100;line-height:1.25;
-  font-variant-numeric:tabular-nums}
+.tt-row .it b{font-size:21px;font-weight:800;color:#E65100;line-height:1.25;
+  font-variant-numeric:tabular-nums;white-space:nowrap}
+.tt-row .it.nx b{color:#1565C0}
+.tt-row .it i{font-style:normal;font-size:11.5px;color:#5b8fc9;margin-top:1px;white-space:nowrap}
+.tt-row .it.nx span{color:#5b8fc9}
 .tt-meta{padding:2px 16px 14px;font-size:13.5px;color:#5b6672}
 .tt-sep{height:1px;background:#f0f3f6;margin:4px 16px 0}
 .tt-note{padding:12px 16px calc(18px + var(--sab));font-size:12.5px;color:#93a0ad;line-height:1.5}
@@ -365,6 +383,12 @@ body[data-z="1.24"] .ttbtn,body[data-z="1.36"] .ttbtn{grid-column:2;grid-row:1 /
   </div>
   <div class="stations" id="stations">
     <div class="loading">正在加载站点…</div>
+  </div>
+  <div class="flowbg" id="flowBg" aria-hidden="true">
+    <svg viewBox="0 0 24 40" fill="none" stroke="currentColor" stroke-width="2.6"
+         stroke-linecap="round" stroke-linejoin="round">
+      <path d="M12 3.5v31"/><path d="M4.5 27l7.5 8 7.5-8"/>
+    </svg>
   </div>
   <div class="foot">数据来自诸暨公交 · 仅供参考</div>
 </div>
@@ -552,6 +576,7 @@ const state = {
   myId: '',           // 我所在的站 id
   raw: [],            // 原始车辆列表
   speed: 240,         // 米/分钟
+  startTime: '',      // 官方「下一班发车时间」HH:mm
   timer: null,
   reqId: 0,
   sig: '',
@@ -696,6 +721,7 @@ async function openDetail(lineName) {
   state.sig = '';
   state.nearest = null;
   state.lastAt = null;
+  state.startTime = '';
   setPage('detail');
   $('dtitle').textContent = lineName;
   updateStar();
@@ -795,33 +821,95 @@ $('dirs').addEventListener('click', e => {
   applyDirection(false);
 });
 
-/* ==================== 发车表 ==================== */
+/* ==================== 发车表 / 下一班 ==================== */
 function hm(t) { return t ? String(t).slice(0, 5) : '—'; }
-function openTimetable() {
-  const d = state.data;
-  if (!d) return;
-  const rows = [];
-  [['up', d.up], ['down', d.down]].forEach(([key, s]) => {
+function toMin(t) {
+  if (!t) return -1;
+  const a = String(t).split(':');
+  const h = Number(a[0]), m = Number(a[1]);
+  if (!isFinite(h) || !isFinite(m)) return -1;
+  return h * 60 + m;
+}
+function nowMinute() { const d = new Date(); return d.getHours() * 60 + d.getMinutes(); }
+function minHM(m) {
+  m = Math.round(((m % 1440) + 1440) % 1440);
+  const h = Math.floor(m / 60), mi = m % 60;
+  return (h < 10 ? '0' : '') + h + ':' + (mi < 10 ? '0' : '') + mi;
+}
+/* 起点到第 i 站（0 基）的累计里程；lastDistance 是「到上一站」的距离 */
+function cumDist(i) {
+  let s = 0;
+  for (let k = 1; k <= i; k++) s += Number((state.stations[k] || {}).lastDistance) || 0;
+  return s;
+}
+/* 起点到第 i 站大约要开多少分钟 */
+function runMinutesTo(i) {
+  if (i <= 0) return 0;
+  return cumDist(i) / (state.speed || 240) + i * 0.35;
+}
+/* 官方「下一班发车时间」+ 到我这站的预计时间 */
+function nextDepInfo() {  const dep = toMin(state.startTime);
+  if (dep < 0) return null;
+  const mi = myIndex();
+  const toIdx = mi >= 0 ? mi : state.stations.length - 1;
+  if (toIdx < 0) return null;
+  return { dep, wait: dep - nowMinute(), eta: dep + runMinutesTo(toIdx), mi };
+}
+function ttHtml(live) {
+  let out = '';
+  [['up', state.data.up], ['down', state.data.down]].forEach(pair => {
+    const key = pair[0], s = pair[1];
     if (!s) return;
-    const n = (s.stationList || []).length;
+    const st = (s.stationList || []).slice().sort((a, b) => (a.stationOrder || 0) - (b.stationOrder || 0));
+    const lv = live[key] || {};
+    const dep = toMin(lv.startTime);
+    const nm = nowMinute();
     const meta = [];
     if (s.lineLength) meta.push('全程 ' + s.lineLength + ' 公里');
-    if (n) meta.push('共 ' + n + ' 站');
-    if (s.totalPrice) meta.push('票价 ' + (Number(s.totalPrice) === 1 ? '1' : s.totalPrice) + ' 元');
-    rows.push(`<div class="tt-dir">开往 ${esc(s.endStation || '')}
-        ${key === state.dir ? '<span class="cur">当前</span>' : ''}
+    if (st.length) meta.push('共 ' + st.length + ' 站');
+    if (s.totalPrice) meta.push('票价 ' + s.totalPrice + ' 元');
+    if (key === state.dir) {
+      const myIdx = myIndex();
+      if (myIdx > 0) meta.push('到你选的站约 ' + Math.round(runMinutesTo(myIdx)) + ' 分钟');
+    }
+    out += `<div class="tt-dir">开往 ${esc(s.endStation || '')}${key === state.dir ? '<span class="cur">当前</span>' : ''}
         <small>从 ${esc(s.startStation || '')} 发车</small>
       </div>
       <div class="tt-row">
         <div class="it"><span>首班</span><b>${hm(s.startFirst)}</b></div>
         <div class="it"><span>末班</span><b>${hm(s.startLast)}</b></div>
+        <div class="it nx"><span>下一班</span><b>${dep >= 0 ? minHM(dep) : '—'}</b>${
+          dep >= 0 && dep > nm ? `<i>还有 ${dep - nm} 分钟</i>` : (dep >= 0 ? '<i>已发车</i>' : '<i>暂无</i>')}</div>
       </div>
       <div class="tt-meta">${meta.map(esc).join(' · ') || '暂无更多信息'}</div>
-      <div class="tt-sep"></div>`);
+      <div class="tt-sep"></div>`;
   });
-  $('ttBody').innerHTML = rows.join('') +
-    '<div class="tt-note">首末班时间来自诸暨公交官方数据；具体班次间隔以站牌和现场为准。</div>';
+  return out;
+}
+async function openTimetable() {
+  const d = state.data;
+  if (!d) return;
+  $('ttBody').innerHTML = '<div class="tt-note">正在获取发车信息…</div>';
   $('ttMask').classList.add('on');
+  // 当前方向用已有数据，另一个方向现拉一次，保证两边都是真实发车时间
+  const live = {};
+  live[state.dir] = { startTime: state.startTime, list: state.raw, speed: state.speed };
+  const other = state.dir === 'up' ? 'down' : 'up';
+  if (d[other] && d[other].id) {
+    try {
+      const v = await apiVehicles(d[other].id);
+      live[other] = {
+        startTime: v.startTime || '',
+        list: Array.isArray(v.list) ? v.list : [],
+        speed: Number(v.busAverageSpeed) || state.speed
+      };
+    } catch (e) {
+      live[other] = { startTime: '', list: [], speed: state.speed };
+    }
+  }
+  if (!$('ttMask').classList.contains('on')) return;
+  $('ttBody').innerHTML = ttHtml(live) +
+    '<div class="tt-note">首班、末班和「下一班」发车时间来自诸暨公交官方数据；「到你选的站」是按线路里程和平均车速估算，仅供参考。</div>';
 }
 function closeTimetable() { $('ttMask').classList.remove('on'); }
 $('ttClose').addEventListener('click', closeTimetable);
@@ -846,6 +934,7 @@ function applyDirection(first) {
   state.sig = '';
   state.nearest = null;
   state.lastAt = null;
+  state.startTime = '';
   state.reqId++;          // 让上一个方向的请求作废
 
   // 恢复该线路该方向上次选的站；切换方向时按站名匹配（上下行站点 id 不同）
@@ -869,7 +958,7 @@ function applyDirection(first) {
   renderMybar();
   renderRef();
   loadBuses();
-  if (first) tryAutoLocate();      // 没记住站时，已授权定位就自动选最近站
+  if (first) autoLocateOnOpen();   // 进入线路页自动定位，并滚到所在站点
 }
 
 function myIndex() {
@@ -922,6 +1011,9 @@ function renderOrderUI() {
   document.querySelectorAll('.segb').forEach(b => {
     b.classList.toggle('on', (b.getAttribute('data-order') === 'desc') === state.desc);
   });
+  // 背景箭头始终指向终点：起点在上（正序）→ 朝下，起点在下（倒序）→ 朝上
+  const fb = $('flowBg');
+  if (fb) fb.classList.toggle('down', !state.desc);
 }
 
 /* 只更新站点上的 🚌 标记，避免整棵列表重绘造成闪烁 */
@@ -963,12 +1055,12 @@ function nearestStationByGeo(lat, lng) {
   let best = null, bestD = Infinity;
   state.stations.forEach(s => {
     const d = hav(lat, lng, s.poiOriginLat, s.poiOriginLon);
-    if (d && d < bestD) { bestD = d; best = s; }
+    if (isFinite(d) && d < bestD) { bestD = d; best = s; }
   });
   return best ? { station: best, dist: bestD } : null;
 }
 
-function locateMe(silent) {
+function locateMe(silent, noJump) {
   if (!navigator.geolocation) {
     if (!silent) toast('这个手机不支持定位，请点站点选择');
     return;
@@ -979,6 +1071,7 @@ function locateMe(silent) {
     if (done) return;
     done = true;
     if (!silent) toast(msg);
+    if (state.myId) setTimeout(() => scrollToMyStation(true), 120);   // 定位不了就滚到上次选的站
   };
   navigator.geolocation.getCurrentPosition(pos => {
     if (done) return;
@@ -987,9 +1080,11 @@ function locateMe(silent) {
     if (!hit) { if (!silent) toast('这条线附近没有站点'); return; }
     if (hit.dist > 2000) {
       if (!silent) toast('定位离这条线有点远（约 ' + Math.round(hit.dist / 1000) + ' 公里），请手动点站点');
+      if (state.myId) setTimeout(() => scrollToMyStation(true), 120);
       return;
     }
     if (hit.station.id === state.myId) {
+      if (!noJump) setTimeout(() => scrollToMyStation(true), 120);
       if (!silent) toast('你已经在这站：' + hit.station.stationName);
       return;
     }
@@ -1001,20 +1096,39 @@ function locateMe(silent) {
     renderBuses();
     loadBuses(true);
     toast('已定位到：' + hit.station.stationName);
+    if (!noJump) {
+      setTimeout(() => scrollToMyStation(true), 150);   // 站点渲染后滚动
+      setTimeout(() => scrollToMyStation(true), 750);   // 车辆卡片渲染后（吸顶高度变化）再校正一次
+    }
   }, err => {
     fail(err && err.code === 1 ? '没有定位权限，请点站点选择' : '定位失败，请点站点选择');
   }, { enableHighAccuracy: true, timeout: 9000, maximumAge: 60000 });
   setTimeout(() => fail('定位超时，请点站点选择'), 10000);
 }
 
-/* 打开线路时：只有"已经授权过定位"才静默自动选站，避免每次都弹权限框 */
-async function tryAutoLocate() {
-  if (state.myId) return;
-  if (!navigator.geolocation || !navigator.permissions || !navigator.permissions.query) return;
+/* 把「我在这」那一站滚到可视区中间（避开吸顶头部） */
+function scrollToMyStation(smooth) {
+  const el = $('stations').querySelector('.st.mine');
+  if (!el) return;
+  const sticky = $('sticky');
+  const hdr = sticky ? sticky.getBoundingClientRect().height : 0;
+  const vh = window.innerHeight;
+  const r = el.getBoundingClientRect();
+  if (r.top >= hdr + 8 && r.bottom <= vh - 8) return;      // 已经在可视区
+  const doc = document.documentElement;
+  let y = window.scrollY + r.top - hdr - Math.max(48, (vh - hdr) * 0.32);
+  y = Math.max(0, Math.min(y, Math.max(0, doc.scrollHeight - vh)));
   try {
-    const p = await navigator.permissions.query({ name: 'geolocation' });
-    if (p.state === 'granted') locateMe(true);
-  } catch (e) { /* 部分 WebView 不支持 permissions.query，交给用户点「定位」 */ }
+    window.scrollTo({ top: y, behavior: smooth === false ? 'auto' : 'smooth' });
+  } catch (e) {
+    window.scrollTo(0, y);
+  }
+}
+
+/* 打开线路时自动定位（首次会弹系统授权框），定位成功后自动滚到那一站 */
+function autoLocateOnOpen() {
+  if (!navigator.geolocation) return;
+  locateMe(true);
 }
 
 /* ==================== 车辆计算 ==================== */
@@ -1070,14 +1184,41 @@ function whereIs(b) {
   const verb = b.atStation ? '车在' : '车刚过';
   return `${verb}「${b.stationName}」`;
 }
-function busHtml(list) {
-  if (!list.length) {
-    const mi = myIndex();
-    const msg = state.raw.length
-      ? (mi < 0 ? '暂时没有可显示的车' : '你要坐的车刚开过去，等下一班吧')
-      : '这条线现在没有车在跑';
-    return `<div class="bempty">${msg}<div class="sub">会自动刷新，也可点右上角时间手动刷新</div></div>`;
+/* 没有可显示的车：直接给出下一班发车时间 + 到你这一站的预计时间 */
+function noBusHtml() {
+  const d = dirData() || {};
+  const nd = nextDepInfo();
+  if (!nd) {
+    const nm = nowMinute(), first = toMin(d.startFirst), last = toMin(d.startLast);
+    let msg = '现在没有车在跑', sub = '';
+    if (first >= 0 && last >= 0 && nm > last) {
+      msg = '今天已经收班了';
+      sub = '末班 ' + hm(d.startLast) + ' · 明天首班 ' + hm(d.startFirst);
+    } else if (first >= 0 && nm < first) {
+      msg = '还没到发车时间';
+      sub = '首班 ' + hm(d.startFirst) + ' 发车 · 还要等 ' + (first - nm) + ' 分钟';
+    } else {
+      sub = (first >= 0 ? '首班 ' + hm(d.startFirst) : '') + (last >= 0 ? ' · 末班 ' + hm(d.startLast) : '');
+    }
+    return `<div class="bempty">${msg}<div class="sub">${esc(sub || '稍后会自动刷新')}</div></div>`;
   }
+  const mi = nd.mi;
+  let l1;
+  if (nd.wait > 1) l1 = `还要等 ${nd.wait} 分钟`;
+  else if (nd.wait >= -3) l1 = '正在起点站发车，注意看车';
+  else l1 = '已从起点站开出';
+  const etaTxt = '约 ' + minHM(nd.eta);
+  const l2 = (zoomIdx >= 3 && mi >= 0) ? etaTxt + ' 到你这'
+    : etaTxt + (mi >= 0 ? ` 到「${state.stations[mi].stationName}」` : ' 到终点站');
+  const note = state.raw.length ? '<div class="bnote">路上没有还在你前面的车了</div>' : '';
+  return `<div class="brow next">
+      <span class="pill">下一班</span>
+      <div class="btime">${minHM(nd.dep)}</div>
+      <div class="bdesc"><div class="l1">${esc(l1)}</div><div class="l2">${esc(l2)}</div></div>
+    </div>${note}`;
+}
+function busHtml(list) {
+  if (!list.length) return noBusHtml();
   const total = state.stations.length;
   // 字体放大后竖向空间紧张，只留最近的一辆
   const maxCards = ZOOMS[zoomIdx] >= 1.24 ? 1 : 2;
@@ -1156,6 +1297,7 @@ async function loadBuses(force) {
     const data = await apiVehicles(d.id);
     if (rid !== state.reqId || state.page !== 'detail') { state.refreshing = false; return; }
     state.speed = Number(data.busAverageSpeed) || 240;
+    state.startTime = data.startTime || '';
     state.raw = Array.isArray(data.list) ? data.list : [];
     state.lastAt = new Date();
     renderBuses();
