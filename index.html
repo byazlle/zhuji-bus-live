@@ -304,7 +304,15 @@ body[data-z="1.24"] .ttbtn,body[data-z="1.36"] .ttbtn{grid-column:2;grid-row:1 /
 .tt-row .it.nx b{color:#1565C0}
 .tt-row .it i{font-style:normal;font-size:11.5px;color:#5b8fc9;margin-top:1px;white-space:nowrap}
 .tt-row .it.nx span{color:#5b8fc9}
-.tt-meta{padding:2px 16px 14px;font-size:13.5px;color:#5b6672}
+.tt-meta{padding:2px 16px 12px;font-size:13.5px;color:#5b6672}
+.tt-list{padding:0 16px 6px}
+.tt-lh{display:flex;justify-content:space-between;align-items:baseline;
+  font-size:12.5px;color:#8b97a4;margin:0 0 7px}
+.tt-grid{display:flex;flex-wrap:wrap;gap:6px}
+.tt-t{font-size:14px;line-height:1.2;padding:5px 9px;border-radius:8px;
+  background:#f1f5f9;color:#37474F;font-variant-numeric:tabular-nums}
+.tt-t.past{background:#f8fafc;color:#bac4ce}
+.tt-t.next{background:#1565C0;color:#fff;font-weight:700;box-shadow:0 1px 4px rgba(21,101,192,.35)}
 .tt-sep{height:1px;background:#f0f3f6;margin:4px 16px 0}
 .tt-note{padding:12px 16px calc(18px + var(--sab));font-size:12.5px;color:#93a0ad;line-height:1.5}
 
@@ -501,6 +509,7 @@ async function api(path, body, retry) {
 }
 const apiLineDetail = lineName => api('/gzcx-busServer/client/busLine/queryLine', { lineName, needGeometry: 0 });
 const apiVehicles = lineId => api('/gzcx-busServer/client/bus/vehicle/dynamic/line/details', { lineId });
+const apiPlan = lineId => api('/gzcx-busServer/client/busLine/getBusLinePlanSimpleTime', { lineId });
 const apiSearch = (lineName, page, offset) =>
   api('/gzcx-busServer/client/busLine/searchBusLines', { lineName, needGeometry: 0, page: page || 1, offset: offset || 30 });
 
@@ -577,6 +586,8 @@ const state = {
   raw: [],            // 原始车辆列表
   speed: 240,         // 米/分钟
   startTime: '',      // 官方「下一班发车时间」HH:mm
+  plan: [],           // 当前方向的官方全天发车时刻表
+  planKey: '',        // 时刻表对应的 线路|方向
   timer: null,
   reqId: 0,
   sig: '',
@@ -722,6 +733,8 @@ async function openDetail(lineName) {
   state.nearest = null;
   state.lastAt = null;
   state.startTime = '';
+  state.plan = [];
+  state.planKey = '';
   setPage('detail');
   $('dtitle').textContent = lineName;
   updateStar();
@@ -841,23 +854,63 @@ function runMinutesTo(i) {
   if (i <= 0) return 0;
   return cumDist(i) / (state.speed || 240) + i * 0.35;
 }
-/* 官方「下一班发车时间」+ 到我这站的预计时间 */
-function nextDepInfo() {  const dep = toMin(state.startTime);
+/* 官方「下一班发车时间」+ 到我这站的预计时间
+   优先用官方全天时刻表算，没有时刻表的线路退回实时 startTime 字段 */
+function nextDepInfo() {
+  const nm = nowMinute();
+  let dep = -1, idx = -1;
+  const plan = state.plan || [];
+  for (let i = 0; i < plan.length; i++) {
+    const m = toMin(plan[i]);
+    if (m >= 0 && m >= nm - 1) { dep = m; idx = i; break; }
+  }
+  if (dep < 0) dep = toMin(state.startTime);
   if (dep < 0) return null;
   const mi = myIndex();
   const toIdx = mi >= 0 ? mi : state.stations.length - 1;
   if (toIdx < 0) return null;
-  return { dep, wait: dep - nowMinute(), eta: dep + runMinutesTo(toIdx), mi };
+  return {
+    dep, wait: dep - nm, eta: dep + runMinutesTo(toIdx), mi,
+    total: plan.length, idx
+  };
 }
-function ttHtml(live) {
+
+/* 拉当前方向的官方全天时刻表（进线路页 / 换方向各拉一次） */
+async function loadPlan() {
+  const d = dirData();
+  if (!d || !d.id) return;
+  const key = state.line + '|' + state.dir;
+  if (state.planKey === key) return;
+  try {
+    const arr = await apiPlan(d.id);
+    if (state.line + '|' + state.dir !== key) return;   // 已经切走了
+    state.plan = Array.isArray(arr) ? arr.filter(x => /^\d{1,2}:\d{2}$/.test(String(x))) : [];
+    state.planKey = key;
+    renderBuses();     // 没车时用时刻表算"下一班"
+  } catch (e) {
+    state.plan = [];
+    state.planKey = key;
+  }
+}
+function ttHtml(live, plans) {
   let out = '';
+  const nm = nowMinute();
   [['up', state.data.up], ['down', state.data.down]].forEach(pair => {
     const key = pair[0], s = pair[1];
     if (!s) return;
     const st = (s.stationList || []).slice().sort((a, b) => (a.stationOrder || 0) - (b.stationOrder || 0));
     const lv = live[key] || {};
-    const dep = toMin(lv.startTime);
-    const nm = nowMinute();
+    const plan = (plans[key] || []).map(toMin).filter(m => m >= 0).sort((a, b) => a - b);
+    const apiNext = toMin(lv.startTime);
+
+    // 时刻表里的"下一班"：第一条 >= 现在的班次
+    let planNext = -1;
+    for (let i = 0; i < plan.length; i++) { if (plan[i] >= nm - 1) { planNext = plan[i]; break; } }
+    const next = apiNext >= 0 ? apiNext : planNext;
+
+    const first = plan.length ? plan[0] : toMin(s.startFirst);
+    const last = plan.length ? plan[plan.length - 1] : toMin(s.startLast);
+
     const meta = [];
     if (s.lineLength) meta.push('全程 ' + s.lineLength + ' 公里');
     if (st.length) meta.push('共 ' + st.length + ' 站');
@@ -866,16 +919,33 @@ function ttHtml(live) {
       const myIdx = myIndex();
       if (myIdx > 0) meta.push('到你选的站约 ' + Math.round(runMinutesTo(myIdx)) + ' 分钟');
     }
+
+    let list = '';
+    if (plan.length) {
+      const past = plan.filter(m => m < nm - 1).length;
+      const chips = plan.map(m => {
+        const isNext = m === (planNext >= 0 ? planNext : -1);
+        return `<span class="tt-t${m < nm - 1 ? ' past' : ''}${isNext ? ' next' : ''}">${minHM(m)}</span>`;
+      }).join('');
+      list = `<div class="tt-list">
+          <div class="tt-lh"><span>全天发车时刻</span><span>共 ${plan.length} 班 · 已发 ${past} 班</span></div>
+          <div class="tt-grid">${chips}</div>
+        </div>`;
+    } else {
+      list = `<div class="tt-meta">这条线路暂时没有完整时刻表，以站牌为准</div>`;
+    }
+
     out += `<div class="tt-dir">开往 ${esc(s.endStation || '')}${key === state.dir ? '<span class="cur">当前</span>' : ''}
         <small>从 ${esc(s.startStation || '')} 发车</small>
       </div>
       <div class="tt-row">
-        <div class="it"><span>首班</span><b>${hm(s.startFirst)}</b></div>
-        <div class="it"><span>末班</span><b>${hm(s.startLast)}</b></div>
-        <div class="it nx"><span>下一班</span><b>${dep >= 0 ? minHM(dep) : '—'}</b>${
-          dep >= 0 && dep > nm ? `<i>还有 ${dep - nm} 分钟</i>` : (dep >= 0 ? '<i>已发车</i>' : '<i>暂无</i>')}</div>
+        <div class="it"><span>首班</span><b>${first >= 0 ? minHM(first) : '—'}</b></div>
+        <div class="it"><span>末班</span><b>${last >= 0 ? minHM(last) : '—'}</b></div>
+        <div class="it nx"><span>下一班</span><b>${next >= 0 ? minHM(next) : '—'}</b>${
+          next >= nm - 1 ? `<i>${next - nm <= 1 ? '即将发车' : '还有 ' + (next - nm) + ' 分钟'}</i>` : (next >= 0 ? '<i>今日已发完</i>' : '<i>暂无</i>')}</div>
       </div>
       <div class="tt-meta">${meta.map(esc).join(' · ') || '暂无更多信息'}</div>
+      ${list}
       <div class="tt-sep"></div>`;
   });
   return out;
@@ -886,24 +956,29 @@ async function openTimetable() {
   $('ttBody').innerHTML = '<div class="tt-note">正在获取发车信息…</div>';
   $('ttMask').classList.add('on');
   // 当前方向用已有数据，另一个方向现拉一次，保证两边都是真实发车时间
-  const live = {};
+  const live = {}, plans = {};
   live[state.dir] = { startTime: state.startTime, list: state.raw, speed: state.speed };
+  plans[state.dir] = state.plan || [];
   const other = state.dir === 'up' ? 'down' : 'up';
-  if (d[other] && d[other].id) {
-    try {
-      const v = await apiVehicles(d[other].id);
+  const cur = d[state.dir], oth = d[other];
+  const jobs = [];
+  if (!plans[state.dir].length && cur && cur.id) {
+    jobs.push(apiPlan(cur.id).then(a => { plans[state.dir] = a || []; }).catch(() => {}));
+  }
+  if (oth && oth.id) {
+    jobs.push(apiPlan(oth.id).then(a => { plans[other] = a || []; }).catch(() => { plans[other] = []; }));
+    jobs.push(apiVehicles(oth.id).then(v => {
       live[other] = {
         startTime: v.startTime || '',
         list: Array.isArray(v.list) ? v.list : [],
         speed: Number(v.busAverageSpeed) || state.speed
       };
-    } catch (e) {
-      live[other] = { startTime: '', list: [], speed: state.speed };
-    }
+    }).catch(() => { live[other] = { startTime: '', list: [], speed: state.speed }; }));
   }
+  await Promise.all(jobs);
   if (!$('ttMask').classList.contains('on')) return;
-  $('ttBody').innerHTML = ttHtml(live) +
-    '<div class="tt-note">首班、末班和「下一班」发车时间来自诸暨公交官方数据；「到你选的站」是按线路里程和平均车速估算，仅供参考。</div>';
+  $('ttBody').innerHTML = ttHtml(live, plans) +
+    '<div class="tt-note">时刻表与首末班为诸暨公交官方发车计划，已过时刻显示为灰色；「到你选的站」按线路里程和平均车速估算，仅供参考。</div>';
 }
 function closeTimetable() { $('ttMask').classList.remove('on'); }
 $('ttClose').addEventListener('click', closeTimetable);
@@ -929,6 +1004,8 @@ function applyDirection(first) {
   state.nearest = null;
   state.lastAt = null;
   state.startTime = '';
+  state.plan = [];
+  state.planKey = '';
   state.reqId++;          // 让上一个方向的请求作废
 
   // 恢复该线路该方向上次选的站；切换方向时按站名匹配（上下行站点 id 不同）
@@ -952,6 +1029,7 @@ function applyDirection(first) {
   renderMybar();
   renderRef();
   loadBuses();
+  loadPlan();                      // 拉官方全天发车时刻表
   if (first) autoLocateOnOpen();   // 进入线路页自动定位，并滚到所在站点
   else jumpToMyStation();          // 换方向后站点顺序全变，重新滚到"我在这"
 }
@@ -1206,7 +1284,8 @@ function noBusHtml() {
   }
   const mi = nd.mi;
   let l1;
-  if (nd.wait > 1) l1 = `还要等 ${nd.wait} 分钟`;
+  if (nd.wait > 120) l1 = `首班 ${minHM(nd.dep)} 发车`;
+  else if (nd.wait > 1) l1 = `还要等 ${nd.wait} 分钟`;
   else if (nd.wait >= -3) l1 = '正在起点站发车，注意看车';
   else l1 = '已从起点站开出';
   const etaTxt = '约 ' + minHM(nd.eta);

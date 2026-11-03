@@ -318,3 +318,21 @@ GitHub仓库：`https://github.com/fgh1995/zhujibus`
 - `诸暨公交ws服务端/` — 作者自己搭的WebSocket中转服务端
 
 如果有问题，可以直接去这个仓库的源码里找答案。
+
+### 2.5 完整发车时刻表 `getBusLinePlanSimpleTime`
+
+```
+POST /gzcx-busServer/client/busLine/getBusLinePlanSimpleTime
+body: {"h": {...}, "b": {"lineId": "330681112"}}
+```
+
+返回该方向**全天所有发车时刻**（起点站发车），数组元素为 `HH:mm` 字符串：
+
+```json
+{"code":"200","data":["06:20","06:45","07:10","...","17:50"]}
+```
+
+- `lineId` 用 `queryLine` 里 `up` / `down` 各自的 `id`，两个方向分别查
+- 首条 = 首班、末条 = 末班，与 `startFirst` / `startLast` 一致
+- 部分线路（实测 2 路）返回空数组，此时只能用首末班 + 实时 `startTime` 兜底
+- 这条接口是官方 App 在用的，浏览器可直接跨域调用（同域名同 CORS 策略）
