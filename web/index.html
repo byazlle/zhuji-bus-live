@@ -387,7 +387,7 @@ body[data-z="1.24"] .ttbtn,body[data-z="1.36"] .ttbtn{grid-column:2;grid-row:1 /
   <div class="flowbg" id="flowBg" aria-hidden="true">
     <svg viewBox="0 0 24 40" fill="none" stroke="currentColor" stroke-width="2.6"
          stroke-linecap="round" stroke-linejoin="round">
-      <path d="M12 3.5v31"/><path d="M4.5 27l7.5 8 7.5-8"/>
+      <path d="M12 36.5V5"/><path d="M4.5 13.5l7.5-8 7.5 8"/>
     </svg>
   </div>
   <div class="foot">数据来自诸暨公交 · 仅供参考</div>
@@ -755,13 +755,7 @@ document.querySelector('.seg').addEventListener('click', e => {
   state.desc = desc;
   LS.set('zjbus.order', desc ? 'desc' : 'asc');
   renderStations();
-  // 换序后把"我在这"滚回视野，否则会跑到很远的地方
-  const mine = document.querySelector('.st.mine');
-  if (mine) {
-    const top = mine.getBoundingClientRect().top + window.scrollY;
-    const head = $('sticky').getBoundingClientRect().height + 40;
-    window.scrollTo(0, Math.max(0, top - head - 80));
-  }
+  jumpToMyStation();     // 换序后"我在这"可能跑到屏幕外，滚回去
 });
 
 /* 刷新时间条（在标题旁）：点一下立即刷新 */
@@ -959,6 +953,7 @@ function applyDirection(first) {
   renderRef();
   loadBuses();
   if (first) autoLocateOnOpen();   // 进入线路页自动定位，并滚到所在站点
+  else jumpToMyStation();          // 换方向后站点顺序全变，重新滚到"我在这"
 }
 
 function myIndex() {
@@ -1123,6 +1118,13 @@ function scrollToMyStation(smooth) {
   } catch (e) {
     window.scrollTo(0, y);
   }
+}
+
+/* 滚两次：第一次立刻，第二次等车辆卡片渲染完、吸顶变高后校正 */
+function jumpToMyStation() {
+  if (!state.myId) return;
+  scrollToMyStation(true);
+  setTimeout(() => scrollToMyStation(true), 700);
 }
 
 /* 打开线路时自动定位（首次会弹系统授权框），定位成功后自动滚到那一站 */
